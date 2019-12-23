@@ -119,7 +119,7 @@ Light GetMainLight(float4 shadowCoord)
 }
 
 // Fills a light struct given a perObjectLightIndex
-Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS, half4 shadowmask)
+Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS)
 {
     // Abstraction over Light input constants
 #if USE_STRUCTURED_BUFFER_FOR_LIGHT_DATA
@@ -147,7 +147,7 @@ Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS, ha
     Light light;
     light.direction = lightDirection;
     light.distanceAttenuation = attenuation;
-    light.shadowAttenuation = AdditionalLightRealtimeShadow(perObjectLightIndex, positionWS, shadowmask);
+    light.shadowAttenuation = AdditionalLightRealtimeShadow(perObjectLightIndex, positionWS);
     light.color = color;
 
     // In case we're using light probes, we can sample the attenuation from the `unity_ProbesOcclusion`
@@ -223,10 +223,19 @@ int GetPerObjectLightIndex(uint index)
 
 // Fills a light struct given a loop i index. This will convert the i
 // index to a perObjectLightIndex
+Light GetAdditionalLight(uint i, float3 positionWS)
+{
+    int perObjectLightIndex = GetPerObjectLightIndex(i);
+    return GetAdditionalPerObjectLight(perObjectLightIndex, positionWS);
+}
+
 Light GetAdditionalLight(uint i, float3 positionWS, half4 shadowmask)
 {
     int perObjectLightIndex = GetPerObjectLightIndex(i);
-    return GetAdditionalPerObjectLight(perObjectLightIndex, positionWS, shadowmask);
+    Light light = GetAdditionalPerObjectLight(perObjectLightIndex, positionWS);
+    half bakedshadow = AdditionalLightBakedShadow(perObjectLightIndex, shadowmask);
+    light.shadowAttenuation = min(light.shadowAttenuation, bakedshadow);
+    return light;
 }
 
 int GetAdditionalLightsCount()
@@ -511,8 +520,10 @@ void MixRealtimeAndBakedGI(inout Light light, half3 normalWS, inout half3 bakedG
 #if defined(_MIXED_LIGHTING_SUBTRACTIVE) && defined(LIGHTMAP_ON)
     bakedGI = SubtractDirectMainLightFromLightmap(light, normalWS, bakedGI);
 #endif
-#if defined(SHADOWS_SHADOWMASK) && defined(LIGHTMAP_ON) 
-    light.shadowAttenuation = min(light.shadowAttenuation, shadowMask.r);
+#if defined(SHADOWS_SHADOWMASK) && defined(LIGHTMAP_ON)
+    half bakedShadow = shadowMask.r;
+    bakedShadow =  LerpWhiteTo(bakedShadow, GetMainLightShadowStrength());
+    light.shadowAttenuation = min(light.shadowAttenuation, bakedShadow);
 #endif
 }
 
