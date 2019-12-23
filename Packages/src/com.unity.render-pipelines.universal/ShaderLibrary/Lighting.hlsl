@@ -572,7 +572,7 @@ half4 UniversalFragmentPBR(InputData inputData, half3 albedo, half metallic, hal
 {
     BRDFData brdfData;
     InitializeBRDFData(albedo, metallic, specular, smoothness, alpha, brdfData);
-
+    
     Light mainLight = GetMainLight(inputData.shadowCoord);
     half4 shadowmask = half4(0, 0, 0, 0);
 #if defined(LIGHTMAP_ON) && defined(SHADOWS_SHADOWMASK)
