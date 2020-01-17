@@ -1,5 +1,6 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
+#pragma kernel Update
 #pragma kernel Init
 #define THREAD_COUNT 256
 #include "common.hlsli"
@@ -10,19 +11,31 @@ RWTexture2D<float4> Result;
 RWStructuredBuffer<Particle> particles;
 AppendStructuredBuffer<uint> pools;
 
+float3 transportPosition;
+float3 transportForward;
+
 
 [numthreads(THREAD_COUNT, 1, 1)]
 void Init(uint3 id : SV_DispatchThreadID)
 {
-    particles[id.x].alive = false;
+    particles[id.x].position = 0.0.xxx;
+    particles[id.x].color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    particles[id.x].size = 1.0f;
     pools.Append(id.x);
 }
 
+[numthreads(THREAD_COUNT, 1, 1)]
+void Update(uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    particles[id.x].position = transportPosition;
+    particles[id.x].forward = transportForward;
+}
 
-[numthreads(8,8,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
 {
     // TODO: insert actual code here!
 
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+    Result[id.xy] = float4(id.x & id.y, (id.x & 15) / 15.0, (id.y & 15) / 15.0, 0.0);
 }

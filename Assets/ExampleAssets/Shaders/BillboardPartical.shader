@@ -58,7 +58,7 @@
                 float3 local_positon = quad[id];
                 Particle particle = particles[inst];
                
-                o.pos = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, float4(local_positon.xyz*particle.size + particle.position, 1.0f)));;
+                o.pos = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, float4(local_positon.xyz + particle.position, 1.0f)));;
 
                 o.uv = local_positon + 0.5f;
 
@@ -69,7 +69,7 @@
 
             fixed4 frag(v2f i) : COLOR
             {
-                return i.col;
+               // return i.col;
                 return (1.0f).xxxx;
             }
 

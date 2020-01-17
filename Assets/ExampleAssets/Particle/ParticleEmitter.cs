@@ -20,12 +20,18 @@ public class ParticleEmitter : MonoBehaviour
         public Vector3 data; //x = age, y = lifetime
         public Color color;
         public float size;
+        bool alive;
     }
-
-    Particle[] m_CpuPartucleBuffer;
-    ComputeBuffer particles,quad;
+    
+    ComputeBuffer particles,quad,pools;
     Material particalMat;
+    public ComputeShader computeShader;
+
+    private int initKernel, emitKernel, updateKernel;
+    const int THREAD_COUNT = 256;
     public int particleCount = 20;
+    private int bufferSize ;
+    private int groupCount;
     #endregion
 
     #region Unity
@@ -43,7 +49,8 @@ public class ParticleEmitter : MonoBehaviour
     }
     private void Update()
     {
-
+        computeShader.SetVector("transportPosition", transform.position);
+        computeShader.SetVector("transportForward", transform.forward);
     }
 
     #endregion
@@ -51,12 +58,24 @@ public class ParticleEmitter : MonoBehaviour
     private void OnInit()
     {
         ReleaseBuffer();
-        particalMat = new Material(Shader.Find("Custom/Billboard Particles"));
-        particles = new ComputeBuffer(particleCount,  Marshal.SizeOf(typeof(Particle)));
-        quad = new ComputeBuffer(6, Marshal.SizeOf(typeof(Vector3)));
+        DispatchInit();
+    }
 
-        quad.SetData(new[]
-          {
+   
+    void DispatchInit()
+    {
+        // init 
+        {
+            initKernel = computeShader.FindKernel("Init");
+            particalMat = new Material(Shader.Find("Custom/Billboard Particles"));
+            groupCount = Mathf.CeilToInt((float)particleCount / THREAD_COUNT);
+            bufferSize = (groupCount+1) * THREAD_COUNT;
+            particles = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)));
+            quad = new ComputeBuffer(6, Marshal.SizeOf(typeof(Vector3)));
+            pools = new ComputeBuffer(bufferSize, sizeof(int), ComputeBufferType.Append);
+            pools.SetCounterValue(0);
+            quad.SetData(new[]
+              {
                 new Vector3(0f,0f,0.0f),
                 new Vector3(0f,1.0f,0.0f),
                 new Vector3(1.0f,0.0f,0.0f),
@@ -64,29 +83,27 @@ public class ParticleEmitter : MonoBehaviour
                 new Vector3(0.0f,1.0f,0.0f),
                 new Vector3(1.0f,0.0f,0.0f)
                 });
+            initKernel = computeShader.FindKernel("Init");
+            computeShader.SetBuffer(initKernel, "particles", particles);
+            computeShader.SetBuffer(initKernel, "pools", pools);
+            computeShader.Dispatch(initKernel, groupCount, 1, 1);
 
+            updateKernel = computeShader.FindKernel("Update");
+            computeShader.SetBuffer(updateKernel, "particles", particles);
 
-        m_CpuPartucleBuffer = new Particle[particleCount];
+        }
     }
-
-   
 
     void OnEndCameraRendering(UnityEngine.Rendering.ScriptableRenderContext context, Camera camera)
     {
         
-        for (int index = 0; index < particleCount; index++)
-        {
-            m_CpuPartucleBuffer[index].position = gameObject.transform.position;
-            m_CpuPartucleBuffer[index].forward = gameObject.transform.forward;
-            m_CpuPartucleBuffer[index].color = Random.ColorHSV(0f, 1f, 1f, 1f, 0.5f, 1f);
-            m_CpuPartucleBuffer[index].size = Random.Range(0.0f, 0.5f);
-            m_CpuPartucleBuffer[index].data.z = Random.Range(0,1.0f);
-
-        }
-        particles.SetData(m_CpuPartucleBuffer);
+        
+      
         CommandBuffer cmd = CommandBufferPool.Get(m_ProfilerTag);
         using (new ProfilingSample(cmd, m_ProfilerTag))
         {
+            updateKernel = computeShader.FindKernel("Update");
+            computeShader.Dispatch(updateKernel, groupCount, 1, 1);
             cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget,
                       RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,     // color
                       RenderBufferLoadAction.DontCare, RenderBufferStoreAction.DontCare); // depth
