@@ -1,41 +1,58 @@
-﻿// Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CSMain
-#pragma kernel Update
+﻿#pragma kernel Update
 #pragma kernel Init
 #define THREAD_COUNT 256
 #include "common.hlsli"
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-RWTexture2D<float4> Result;
+
 RWStructuredBuffer<Particle> particles;
 AppendStructuredBuffer<uint> pools;
+ConsumeStructuredBuffer<uint> alive;
 
 float3 transportPosition;
 float3 transportForward;
+float2 time; //x = delta time, y = elapsed time
 
 
 [numthreads(THREAD_COUNT, 1, 1)]
 void Init(uint3 id : SV_DispatchThreadID)
 {
-    particles[id.x].position = 0.0.xxx;
     particles[id.x].color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    particles[id.x].alive = false;
     particles[id.x].size = 1.0f;
     pools.Append(id.x);
+}
+
+[numthreads(1, 1, 1)]
+void Emit(uint3 svid : SV_DispatchThreadID)
+{
+    uint id = alive.Consume();
+    Particle p = particles[id];
+    p.alive = true;
+    particles[id].position = transportPosition;
+    particles[id].forward = transportForward;
+    particles[id].data.x = 0.0f;
+    particles[id].data.y = 20.0f;
+    particles[id] = p;
 }
 
 [numthreads(THREAD_COUNT, 1, 1)]
 void Update(uint3 id : SV_DispatchThreadID)
 {
-    // TODO: insert actual code here!
-    particles[id.x].position = transportPosition;
-    particles[id.x].forward = transportForward;
+    Particle p = particles[id.x];
+    if (p.alive)
+    {
+        if (p.data.x + time.x >= p.data.y)
+        {
+            p.alive = false;
+            pools.Append(id.x);
+            p.data.x += time.x;
+        }
+        else
+        {
+
+            p.position += float3(0,1,0);
+        }
+    }
+    particles[id.x] = p;
 }
 
-[numthreads(8, 8, 1)]
-void CSMain(uint3 id : SV_DispatchThreadID)
-{
-    // TODO: insert actual code here!
-
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15) / 15.0, (id.y & 15) / 15.0, 0.0);
-}

@@ -91,6 +91,9 @@ namespace UnityEngine.Rendering.Universal
         const int k_RenderPassBlockCount = 4;
 
         List<ScriptableRenderPass> m_ActiveRenderPassQueue = new List<ScriptableRenderPass>(32);
+
+        public static List<CustomDrawing> staticDrawingRender = new List<CustomDrawing>(32);
+        List<CustomDrawing> m_ActiveDrawing = new List<CustomDrawing>(32);
         List<ScriptableRendererFeature> m_RendererFeatures = new List<ScriptableRendererFeature>(10);
         RenderTargetIdentifier m_CameraColorTarget;
         RenderTargetIdentifier m_CameraDepthTarget;
@@ -198,6 +201,7 @@ namespace UnityEngine.Rendering.Universal
             
             // Sort the render pass queue
             SortStable(m_ActiveRenderPassQueue);
+            SortStable(m_ActiveDrawing);
 
             // Cache the time for after the call to `SetupCameraProperties` and set the time variables in shader
             // For now we set the time variables per camera, as we plan to remove `SetupCamearProperties`.
@@ -363,6 +367,7 @@ namespace UnityEngine.Rendering.Universal
             m_FirstCameraRenderPassExecuted = false;
             m_InsideStereoRenderBlock = false;
             m_ActiveRenderPassQueue.Clear();
+            m_ActiveDrawing.Clear();
         }
 
         void ExecuteBlock(int blockIndex, NativeArray<int> blockRanges,
@@ -553,6 +558,21 @@ namespace UnityEngine.Rendering.Universal
             for (int i = 1; i < list.Count; ++i)
             {
                 ScriptableRenderPass curr = list[i];
+
+                j = i - 1;
+                for (; j >= 0 && curr < list[j]; --j)
+                    list[j + 1] = list[j];
+
+                list[j + 1] = curr;
+            }
+        }
+
+        internal static void SortStable(List<CustomDrawing> list)
+        {
+            int j;
+            for (int i = 1; i < list.Count; ++i)
+            {
+                CustomDrawing curr = list[i];
 
                 j = i - 1;
                 for (; j >= 0 && curr < list[j]; --j)
