@@ -230,6 +230,7 @@ namespace UnityEngine.Rendering.Universal
                 InitializeRenderingData(settings, ref cameraData, ref cullResults, out var renderingData);
 
                 renderer.Setup(context, ref renderingData);
+                renderer.SetupCustomDrawer();
                 renderer.Execute(context, ref renderingData);
             }
 

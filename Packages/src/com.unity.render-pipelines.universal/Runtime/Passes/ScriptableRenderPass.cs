@@ -31,10 +31,8 @@ namespace UnityEngine.Rendering.Universal
     /// <summary>
     /// <c>ScriptableRenderPass</c> implements a logical rendering pass that can be used to extend Universal RP renderer.
     /// </summary>
-    [MovedFrom("UnityEngine.Rendering.LWRP")] public abstract class ScriptableRenderPass
+    [MovedFrom("UnityEngine.Rendering.LWRP")] public abstract class ScriptableRenderPass : Drawing
     {
-        public RenderPassEvent renderPassEvent { get; set; }
-
         public RenderTargetIdentifier colorAttachment
         {
             get => m_ColorAttachment;
@@ -126,20 +124,7 @@ namespace UnityEngine.Rendering.Universal
         public virtual void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {}
 
-        /// <summary>
-        /// Cleanup any allocated data that was created during the execution of the pass.
-        /// </summary>
-        /// <param name="cmd">Use this CommandBuffer to cleanup any generated data</param>
-        public virtual void FrameCleanup(CommandBuffer cmd)
-        {}
-
-        /// <summary>
-        /// Execute the pass. This is where custom rendering occurs. Specific details are left to the implementation
-        /// </summary>
-        /// <param name="context">Use this render context to issue any draw commands during execution</param>
-        /// <param name="renderingData">Current rendering state information</param>
-        public abstract void Execute(ScriptableRenderContext context, ref RenderingData renderingData);
-
+       
         /// <summary>
         /// Add a blit command to the context for execution. This changes the active render target in the ScriptableRenderer to
         /// destination.
@@ -219,16 +204,7 @@ namespace UnityEngine.Rendering.Universal
                 settings.SetShaderPassName(i, shaderTagIdList[i]);
             return settings;
         }
-
-        public static bool operator <(ScriptableRenderPass lhs, ScriptableRenderPass rhs)
-        {
-            return lhs.renderPassEvent < rhs.renderPassEvent;
-        }
-
-        public static bool operator >(ScriptableRenderPass lhs, ScriptableRenderPass rhs)
-        {
-            return lhs.renderPassEvent > rhs.renderPassEvent;
-        }
+        
 
         // TODO: Remove this. Currently only used by FinalBlit pass.
         internal void SetRenderTarget(
