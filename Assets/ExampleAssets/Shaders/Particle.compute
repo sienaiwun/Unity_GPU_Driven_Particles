@@ -34,7 +34,7 @@ float3 randomPointOnSphere(float u, float v, float radius)
 [numthreads(THREAD_COUNT, 1, 1)]
 void Init(uint3 id : SV_DispatchThreadID)
 {
-    particles[id.x].color = float4(1.0f, 0.0f, 1.0f, 1.0f);
+    particles[id.x].color = float4(1.0f, 1.0f, 1.0f, 1.0f);
     particles[id.x].alive = false;
     particles[id.x].size = 1.0f;
     pools.Append(id.x);

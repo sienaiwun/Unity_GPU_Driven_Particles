@@ -14,9 +14,9 @@
                 Lighting Off
                 Zwrite Off
 
-            //Blend SrcAlpha OneMinusSrcAlpha
+            Blend SrcAlpha OneMinusSrcAlpha
             //Blend One OneMinusSrcAlpha
-            Blend One One
+           // Blend One One
             //Blend OneMinusDstColor One
 
             LOD 200
@@ -68,7 +68,7 @@
 
             fixed4 frag(v2f i) : COLOR
             {
-                return i.col;
+                return i.col*tex2D(_MainTex, i.uv);
                 //return (1.0f).xxxx;
             }
 

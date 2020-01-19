@@ -24,7 +24,7 @@ public class ParticleEmitter : MonoBehaviour
     }
     
     ComputeBuffer particles,quad,pools, counter; // counter is used to get the number of the pools
-    Material particalMat;
+    public Material particalMat;
     public ComputeShader computeShader;
 
     private int initKernel, emitKernel, updateKernel;
@@ -104,7 +104,7 @@ public class ParticleEmitter : MonoBehaviour
         // init 
         {
             initKernel = computeShader.FindKernel("Init");
-            particalMat = new Material(Shader.Find("Custom/Billboard Particles"));
+            //particalMat = new Material(Shader.Find("Custom/Billboard Particles"));
             groupCount = Mathf.CeilToInt((float)particleCount / THREAD_COUNT);
             bufferSize = groupCount* THREAD_COUNT;
             particles = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)));
