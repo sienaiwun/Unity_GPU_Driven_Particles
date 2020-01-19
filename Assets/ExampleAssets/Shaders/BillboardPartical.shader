@@ -54,7 +54,6 @@
                 v2f o;
                 float2 	Tex = float2(uint2(id, id << 1) & 2);
                 float2 Pos = float4(lerp(float2(-1, 1), float2(1, -1), Tex), 0, 1);
-
                 float3 local_positon = quad[id];
                 Particle particle = particles[inst];
                
@@ -62,15 +61,15 @@
 
                 o.uv = local_positon + 0.5f;
 
-                o.col =  particles[inst].color;
+                o.col =  particles[inst].color*particles[inst].alive;
 
                 return o;
             }
 
             fixed4 frag(v2f i) : COLOR
             {
-               // return i.col;
-                return (1.0f).xxxx;
+                return i.col;
+                //return (1.0f).xxxx;
             }
 
             ENDCG

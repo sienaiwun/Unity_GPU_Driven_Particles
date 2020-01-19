@@ -93,7 +93,6 @@ namespace UnityEngine.Rendering.Universal
         List<Drawing> m_ActiveRenderPassQueue = new List<Drawing>(32);
 
         public static List<CustomDrawing> staticDrawingRender = new List<CustomDrawing>(32);
-        List<CustomDrawing> m_ActiveDrawing = new List<CustomDrawing>(32);
         List<ScriptableRendererFeature> m_RendererFeatures = new List<ScriptableRendererFeature>(10);
         RenderTargetIdentifier m_CameraColorTarget;
         RenderTargetIdentifier m_CameraDepthTarget;
@@ -370,7 +369,6 @@ namespace UnityEngine.Rendering.Universal
             m_FirstCameraRenderPassExecuted = false;
             m_InsideStereoRenderBlock = false;
             m_ActiveRenderPassQueue.Clear();
-            m_ActiveDrawing.Clear();
         }
 
         void ExecuteBlock(int blockIndex, NativeArray<int> blockRanges,

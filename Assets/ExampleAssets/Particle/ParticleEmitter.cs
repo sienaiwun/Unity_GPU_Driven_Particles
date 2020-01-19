@@ -29,11 +29,11 @@ public class ParticleEmitter : MonoBehaviour
 
     private int initKernel, emitKernel, updateKernel;
     const int THREAD_COUNT = 256;
-    public int particleCount = 20;
+    const int particleCount = 255;
     private int bufferSize ;
     private int groupCount;
     private float timer = 0.0f;
-    private float emissionRate = 10;
+    const float emissionRate = 2000.0f;
     private int[] counterArray;
     private int poolsCount = 0;
     #endregion
@@ -58,20 +58,33 @@ public class ParticleEmitter : MonoBehaviour
         computeShader.SetVector("time", new Vector2(time_delta, timer));
         computeShader.SetVector("transportPosition", transform.position);
         computeShader.SetVector("transportForward", transform.forward);
-        EmitParticles(Mathf.RoundToInt(time_delta * emissionRate));
     }
 
     #endregion
 
+    #region Lifetime
+    public float minLifetime = 1f;
+    public float maxLifetime = 3f;
+    #endregion
     private void OnInit()
     {
         ReleaseBuffer();
         DispatchInit();
+        DispatchUpdate();
     }
 
     void EmitParticles(int count)
     {
+        Debug.Log("emit num:" + count);
         emitKernel = computeShader.FindKernel("Emit");
+        count = Mathf.Min(count, particleCount - (bufferSize - poolsCount));
+        if (count > 0)
+        {
+            computeShader.SetVector("seeds", new Vector3(Random.Range(1f, 10000f), Random.Range(1f, 10000f), Random.Range(1f, 10000f)));
+            computeShader.SetVector("lifeRange", new Vector2(minLifetime, maxLifetime));
+            computeShader.SetBuffer(emitKernel, "alive", pools);
+            computeShader.Dispatch(emitKernel, count, 1, 1);
+        }
 
     }
 
@@ -82,7 +95,7 @@ public class ParticleEmitter : MonoBehaviour
             initKernel = computeShader.FindKernel("Init");
             particalMat = new Material(Shader.Find("Custom/Billboard Particles"));
             groupCount = Mathf.CeilToInt((float)particleCount / THREAD_COUNT);
-            bufferSize = (groupCount+1) * THREAD_COUNT;
+            bufferSize = groupCount* THREAD_COUNT;
             particles = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)));
             quad = new ComputeBuffer(6, Marshal.SizeOf(typeof(Vector3)));
             pools = new ComputeBuffer(bufferSize, sizeof(int), ComputeBufferType.Append);
@@ -103,33 +116,42 @@ public class ParticleEmitter : MonoBehaviour
             computeShader.SetBuffer(initKernel, "pools", pools);
             computeShader.Dispatch(initKernel, groupCount, 1, 1);
 
-            updateKernel = computeShader.FindKernel("Update");
-            computeShader.SetBuffer(updateKernel, "particles", particles);
-            computeShader.SetBuffer(updateKernel, "pools", pools);
-            SetPoolsCount();
-
+          
         }
     }
-   
+
+    private void DispatchUpdate()
+    {
+        updateKernel = computeShader.FindKernel("Update");
+        computeShader.SetBuffer(updateKernel, "particles", particles);
+        computeShader.SetBuffer(updateKernel, "pools", pools);
+        computeShader.Dispatch(updateKernel, groupCount, 1, 1);
+        SetPoolsCount();
+    }
+
+    private void DrawParticles(CommandBuffer cmd)
+    {
+        cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget,
+                      RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,     // color
+                      RenderBufferLoadAction.DontCare, RenderBufferStoreAction.DontCare); // depth
+                                                                                          // cmd.Blit(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget, mat);
+        cmd.SetGlobalBuffer("particles", particles);
+        cmd.SetGlobalBuffer("quad", quad);
+        Debug.Log("draw num:" + (bufferSize - poolsCount));
+        cmd.DrawProcedural(Matrix4x4.identity, particalMat, 0, MeshTopology.Triangles, 6, bufferSize );
+    }
 
     void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
     {
-        
-        
-      
         CommandBuffer cmd = CommandBufferPool.Get(m_ProfilerTag);
         using (new ProfilingSample(cmd, m_ProfilerTag))
         {
 
-            updateKernel = computeShader.FindKernel("Update");
-            computeShader.Dispatch(updateKernel, groupCount, 1, 1);
-            cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget,
-                      RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,     // color
-                      RenderBufferLoadAction.DontCare, RenderBufferStoreAction.DontCare); // depth
-                                                               // cmd.Blit(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget, mat);
-            cmd.SetGlobalBuffer("particles", particles);
-            cmd.SetGlobalBuffer("quad", quad);
-            cmd.DrawProcedural(Matrix4x4.identity, particalMat, 0, MeshTopology.Triangles, 6, 10);
+            EmitParticles(Mathf.RoundToInt(Time.deltaTime * emissionRate));
+            DispatchUpdate();
+            DrawParticles(cmd);
+           
+
         }
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
@@ -163,5 +185,6 @@ public class ParticleEmitter : MonoBehaviour
         ComputeBuffer.CopyCount(pools, counter, 0);
         counter.GetData(counterArray);
         poolsCount = counterArray[0];
+       
     }
 }

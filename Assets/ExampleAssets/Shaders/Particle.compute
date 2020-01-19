@@ -1,6 +1,8 @@
 ﻿#pragma kernel Update
 #pragma kernel Init
+#pragma kernel Emit
 #define THREAD_COUNT 256
+#define PI 3.14159265351
 #include "common.hlsli"
 
 
@@ -11,12 +13,28 @@ ConsumeStructuredBuffer<uint> alive;
 float3 transportPosition;
 float3 transportForward;
 float2 time; //x = delta time, y = elapsed time
+float3 seeds;
+float2 lifeRange; //x = min, y = max
+float rand(float3 co)
+{
+    return frac(sin(dot(co.xyz, float3(12.9898, 78.233, 45.5432))) * 43758.5453);
+}
+
+float3 randomPointOnSphere(float u, float v, float radius)
+{
+    float theta = 2 * PI * u;
+    float phi = acos(2 * v - 1);
+    float x = radius * sin(phi) * cos(theta);
+    float y = radius * sin(phi) * sin(theta);
+    float z = radius * cos(phi);
+    return float3(x, y, z);
+}
 
 
 [numthreads(THREAD_COUNT, 1, 1)]
 void Init(uint3 id : SV_DispatchThreadID)
 {
-    particles[id.x].color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    particles[id.x].color = float4(1.0f, 0.0f, 1.0f, 1.0f);
     particles[id.x].alive = false;
     particles[id.x].size = 1.0f;
     pools.Append(id.x);
@@ -28,10 +46,11 @@ void Emit(uint3 svid : SV_DispatchThreadID)
     uint id = alive.Consume();
     Particle p = particles[id];
     p.alive = true;
-    particles[id].position = transportPosition;
-    particles[id].forward = transportForward;
-    particles[id].data.x = 0.0f;
-    particles[id].data.y = 20.0f;
+    p.position = transportPosition;
+    float radius = 1.0f;
+    p.forward = transportForward*2 + randomPointOnSphere(rand(seeds.xyz / (id + 1)), rand(seeds.yzx / (id + 1)), radius * rand(seeds.zyx / (id + 1)));
+    p.data.x = 0.0f;
+    p.data.y = lifeRange.x + (lifeRange.y - lifeRange.x) * rand(seeds.zxy / (id + 1));
     particles[id] = p;
 }
 
@@ -45,13 +64,10 @@ void Update(uint3 id : SV_DispatchThreadID)
         {
             p.alive = false;
             pools.Append(id.x);
-            p.data.x += time.x;
         }
-        else
-        {
-
-            p.position += float3(0,1,0);
-        }
+        p.data.x += time.x;
+        p.forward += float3(0,-1,0) * time.x;
+        p.position += p.forward  * time.x;
     }
     particles[id.x] = p;
 }
