@@ -36,20 +36,31 @@ public class ParticleEmitter : MonoBehaviour
     const float emissionRate = 2000.0f;
     private int[] counterArray;
     private int poolsCount = 0;
+    CustomDrawing m_drawing;
     #endregion
 
     #region Unity
     private void OnEnable()
     {
-        UnityEngine.Rendering.RenderPipelineManager.endCameraRendering += OnEndCameraRendering;
-        UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering += OnBeforeCameraRendering;
+        if (m_drawing == null)
+        {
+            m_drawing = new CustomDrawing()
+            {
+                renderPassEvent = RenderPassEvent.AfterRenderingSkybox,
+            };
+            m_drawing.drawer += OnParticlesDrawing;
+        }
+        if (!ScriptableRenderer.staticDrawingRender.Contains(m_drawing))
+            ScriptableRenderer.staticDrawingRender.Add(m_drawing);
         OnInit();
     }
 
     private void OnDisable()
     {
-        UnityEngine.Rendering.RenderPipelineManager.endCameraRendering -= OnEndCameraRendering;
-        UnityEngine.Rendering.RenderPipelineManager.beginCameraRendering -= OnBeforeCameraRendering;
+        if (m_drawing != null)
+        {
+            UnityEngine.Rendering.Universal.ForwardRenderer.staticDrawingRender.Remove(m_drawing);
+        }
     }
     private void Update()
     {
@@ -130,18 +141,14 @@ public class ParticleEmitter : MonoBehaviour
     }
 
     private void DrawParticles(CommandBuffer cmd)
-    {
-        cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget,
-                      RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,     // color
-                      RenderBufferLoadAction.DontCare, RenderBufferStoreAction.DontCare); // depth
-                                                                                          // cmd.Blit(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget, mat);
+    {                                                                               // cmd.Blit(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget, mat);
         cmd.SetGlobalBuffer("particles", particles);
         cmd.SetGlobalBuffer("quad", quad);
         Debug.Log("draw num:" + (bufferSize - poolsCount));
         cmd.DrawProcedural(Matrix4x4.identity, particalMat, 0, MeshTopology.Triangles, 6, bufferSize );
     }
 
-    void OnEndCameraRendering(ScriptableRenderContext context, Camera camera)
+    void OnParticlesDrawing(ScriptableRenderContext context)
     {
         CommandBuffer cmd = CommandBufferPool.Get(m_ProfilerTag);
         using (new ProfilingSample(cmd, m_ProfilerTag))
