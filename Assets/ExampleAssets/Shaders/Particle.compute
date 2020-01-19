@@ -5,11 +5,10 @@
 #define PI 3.14159265351
 #include "common.hlsli"
 
+StructuredBuffer<Particle> inputs;
+RWStructuredBuffer<Particle> outputs;
 
-RWStructuredBuffer<Particle> particles;
-AppendStructuredBuffer<uint> pools;
-ConsumeStructuredBuffer<uint> alive;
-
+float maxCount;
 float3 transportPosition;
 float3 transportForward;
 float2 time; //x = delta time, y = elapsed time
@@ -34,41 +33,46 @@ float3 randomPointOnSphere(float u, float v, float radius)
 [numthreads(THREAD_COUNT, 1, 1)]
 void Init(uint3 id : SV_DispatchThreadID)
 {
-    particles[id.x].color = float4(1.0f, 1.0f, 1.0f, 1.0f);
-    particles[id.x].alive = false;
-    particles[id.x].size = 1.0f;
-    pools.Append(id.x);
+    outputs[id.x].color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    outputs[id.x].alive = false;
+    outputs[id.x].size = 1.0f;
+    outputs[id.x].data.x = 0.0f;
+    outputs[id.x].data.y = lifeRange.x + (lifeRange.y - lifeRange.x) * rand(seeds.zxy / (id + 1));
+    outputs[id.x].data.z = 0.0f;
 }
 
 [numthreads(1, 1, 1)]
 void Emit(uint3 svid : SV_DispatchThreadID)
 {
-    uint id = alive.Consume();
-    Particle p = particles[id];
+    uint id = outputs.IncrementCounter();
+    if (id >= maxCount)
+    {
+        return;
+    }
+    Particle p;
     p.alive = true;
     p.position = transportPosition;
     float radius = 1.0f;
     p.forward = transportForward*2 + randomPointOnSphere(rand(seeds.xyz / (id + 1)), rand(seeds.yzx / (id + 1)), radius * rand(seeds.zyx / (id + 1)));
     p.data.x = 0.0f;
     p.data.y = lifeRange.x + (lifeRange.y - lifeRange.x) * rand(seeds.zxy / (id + 1));
-    particles[id] = p;
+    p.data.z = 0.0f;
+    p.size = 1.0f;
+    p.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    outputs[id] = p;
 }
 
 [numthreads(THREAD_COUNT, 1, 1)]
 void Update(uint3 id : SV_DispatchThreadID)
 {
-    Particle p = particles[id.x];
-    if (p.alive)
+    Particle p = inputs[id.x];
+    if (p.data.x + time.x >= p.data.y)
     {
-        if (p.data.x + time.x >= p.data.y)
-        {
-            p.alive = false;
-            pools.Append(id.x);
-        }
-        p.data.x += time.x;
-        p.forward += float3(0,-1,0) * time.x;
-        p.position += p.forward  * time.x;
+        return;
     }
-    particles[id.x] = p;
+    p.data.x += time.x;
+    p.forward += float3(0,-1,0) * time.x;
+    p.position += p.forward  * time.x;
+    outputs[outputs.IncrementCounter()] = p;
 }
 

@@ -652,7 +652,7 @@ MonoBehaviour:
   particalMat: {fileID: 2100000, guid: 2fa6708bb84607349adda1e65fc5d040, type: 2}
   computeShader: {fileID: 7200000, guid: bedc546d87f5fd240965a0fb88ae6825, type: 3}
   minLifetime: 3
-  maxLifetime: 5
+  maxLifetime: 15
 --- !u!4 &1094566688
 Transform:
   m_ObjectHideFlags: 0
