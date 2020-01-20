@@ -23,20 +23,18 @@ public class ParticleEmitter : MonoBehaviour
         bool alive;
     }
     
-    ComputeBuffer particles,quad,pools, counter,indirectdrawbuffer; // counter is used to get the number of the pools
+    ComputeBuffer quad,indirectdrawbuffer,dispatchArgsBuffer; // counter is used to get the number of the pools
     private ComputeBuffer[] m_pingpongBuffer;
     public Material particalMat;
     public ComputeShader computeShader;
     private int m_currentBufferIndex = 0;
-    private int initKernel, emitKernel, updateKernel;
+    private int initKernel, emitKernel, updateKernel,copyArgsKernel;
     const int THREAD_COUNT = 256;
-    const int particleCount = 255;
+    const int particleCount = 65536;
     private int bufferSize ;
     private int groupCount;
     private float timer = 0.0f;
-    const float emissionRate = 2000.0f;
-    private int[] counterArray;
-    private int poolsCount = 0;
+    const float emissionRate = 2000.0f*256;
     CustomDrawing m_drawing;
     #endregion
 
@@ -63,14 +61,8 @@ public class ParticleEmitter : MonoBehaviour
             UnityEngine.Rendering.Universal.ForwardRenderer.staticDrawingRender.Remove(m_drawing);
         }
     }
-    private void Update()
-    {
-        float time_delta = Time.deltaTime;
-        timer += time_delta;
-        computeShader.SetVector("time", new Vector2(time_delta, timer));
-        computeShader.SetVector("transportPosition", transform.position);
-        computeShader.SetVector("transportForward", transform.forward);
-    }
+
+
 
     #endregion
 
@@ -78,6 +70,7 @@ public class ParticleEmitter : MonoBehaviour
     public float minLifetime = 1f;
     public float maxLifetime = 3f;
     #endregion
+
     private void OnInit()
     {
         ReleaseBuffer();
@@ -105,12 +98,11 @@ public class ParticleEmitter : MonoBehaviour
         m_pingpongBuffer[m_currentBufferIndex].SetCounterValue(0);
         computeShader.SetBuffer(updateKernel, "outputs", m_pingpongBuffer[m_currentBufferIndex]);
         computeShader.SetBuffer(updateKernel, "inputs", m_pingpongBuffer[1 -m_currentBufferIndex]);
-        computeShader.Dispatch(updateKernel, groupCount, 1, 1);
+        computeShader.DispatchIndirect(updateKernel, dispatchArgsBuffer);
     }
 
     private void EmitParticles(int count)
     {
-        Debug.Log("emit num:" + count);
         emitKernel = computeShader.FindKernel("Emit");
         if (count > 0)
         {
@@ -125,29 +117,34 @@ public class ParticleEmitter : MonoBehaviour
 
     private void CopyIndirectArgs()
     {
-
+        copyArgsKernel = computeShader.FindKernel("CopyIndirectArgs");
+        computeShader.SetBuffer(copyArgsKernel, "drawArgsBuffer", indirectdrawbuffer);
+        computeShader.SetBuffer(copyArgsKernel, "dispatchArgsBuffer", dispatchArgsBuffer);
+        computeShader.Dispatch(copyArgsKernel, 1, 1, 1);
     }
 
-    private void DrawParticles(CommandBuffer cmd)
-    {                                                                               // cmd.Blit(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget, mat);
-        cmd.SetGlobalBuffer("particles", m_pingpongBuffer[m_currentBufferIndex]);
-        cmd.SetGlobalBuffer("quad", quad);
-        Debug.Log("draw num:" + (bufferSize - poolsCount));
-        cmd.DrawProceduralIndirect(Matrix4x4.identity, particalMat, 0, MeshTopology.Triangles, indirectdrawbuffer);
+    private void UpdateParticles()
+    {
+        float time_delta = Time.deltaTime;
+        timer += time_delta;
+        computeShader.SetVector("time", new Vector2(time_delta, timer));
+        computeShader.SetVector("transportPosition", transform.position);
+        computeShader.SetVector("transportForward", transform.forward);
+        DispatchUpdate();
+        EmitParticles(Mathf.RoundToInt(Time.deltaTime * emissionRate));
+        CopyIndirectArgs();
+        SwapBuffer();
     }
-
-  
-
     void OnParticlesDrawing(ScriptableRenderContext context)
     {
+        UpdateParticles();
         CommandBuffer cmd = CommandBufferPool.Get(m_ProfilerTag);
         using (new ProfilingSample(cmd, m_ProfilerTag))
         {
-            DispatchUpdate();
-            EmitParticles(Mathf.RoundToInt(Time.deltaTime * emissionRate));
-            CopyIndirectArgs();
-            DrawParticles(cmd);
-            SwapBuffer();
+            cmd.CopyCounterValue(m_pingpongBuffer[1 -m_currentBufferIndex], indirectdrawbuffer, sizeof(int) / sizeof(byte));
+            cmd.SetGlobalBuffer("particles", m_pingpongBuffer[1 - m_currentBufferIndex]);
+            cmd.SetGlobalBuffer("quad", quad);
+            cmd.DrawProceduralIndirect(Matrix4x4.identity, particalMat, 0, MeshTopology.Triangles, indirectdrawbuffer);
         }
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
@@ -158,14 +155,11 @@ public class ParticleEmitter : MonoBehaviour
     {
         groupCount = Mathf.CeilToInt((float)particleCount / THREAD_COUNT);
         bufferSize = groupCount * THREAD_COUNT;
-        particles = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)));
         quad = new ComputeBuffer(6, Marshal.SizeOf(typeof(Vector3)));
-        pools = new ComputeBuffer(bufferSize, sizeof(int), ComputeBufferType.Append);
-        pools.SetCounterValue(0);
-        counter = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
         indirectdrawbuffer = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
-        counterArray = new int[] { 6, bufferSize, 0, 0 };
-        indirectdrawbuffer.SetData(counterArray);
+        dispatchArgsBuffer = new ComputeBuffer(3, sizeof(int), ComputeBufferType.IndirectArguments);
+        indirectdrawbuffer.SetData(new int[] { 6, 1, 0, 0 });
+        dispatchArgsBuffer.SetData(new int[] { 0, 1, 1 });
         quad.SetData(new[]
           {
                 new Vector3(0f,0f,0.0f),
@@ -182,34 +176,14 @@ public class ParticleEmitter : MonoBehaviour
 
     private void ReleaseBuffer()
     {
-        if (particles != null) particles.Release();
         if (quad != null) quad.Release();
-        if (pools != null) pools.Release();
-        if (counter != null) counter.Release();
         if (indirectdrawbuffer != null) indirectdrawbuffer.Release();
-        if(m_pingpongBuffer!= null)
+        if (dispatchArgsBuffer != null) dispatchArgsBuffer.Release();
+        if (m_pingpongBuffer!= null)
         {
             if (m_pingpongBuffer[0] != null) m_pingpongBuffer[0].Release();
             if (m_pingpongBuffer[1] != null) m_pingpongBuffer[1].Release();
         }
     }
-
-    private int GetPoolCount()
-    {
-        return poolsCount;
-    }
-
-    private void SetPoolsCount()
-    {
-        if (pools == null || counter == null || counterArray == null)
-        {
-            poolsCount = bufferSize;
-            return;
-        }
-        counter.SetData(counterArray);
-        ComputeBuffer.CopyCount(pools, counter, 0);
-        counter.GetData(counterArray);
-        poolsCount = counterArray[0];
-       
-    }
+    
 }
