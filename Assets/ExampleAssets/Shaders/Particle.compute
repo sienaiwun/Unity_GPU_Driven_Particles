@@ -11,13 +11,26 @@ RWStructuredBuffer<Particle> outputs;
 ByteAddressBuffer drawArgsBuffer;
 RWByteAddressBuffer dispatchArgsBuffer;
 
-
+bool enableCulling;
 float maxCount;
 float3 transportPosition;
 float3 transportForward;
 float2 time; //x = delta time, y = elapsed time
 float3 seeds;
 float2 lifeRange; //x = min, y = max
+matrix gViewProj;
+
+bool FrustomOut(float3 WPos)
+{
+    if (!enableCulling)
+        return false;
+    float4 HPos = mul(gViewProj, float4(WPos, 1));
+    HPos /= HPos.w;
+   // if (max(max(0.0, HPos.x), max(HPos.y, 0.0)) > 1.0f)
+    if(abs(HPos.x)>1|| abs(HPos.y) > 1)
+        return true;
+    return false;
+}
 float rand(float3 co)
 {
     return frac(sin(dot(co.xyz, float3(12.9898, 78.233, 45.5432))) * 43758.5453);
@@ -77,6 +90,10 @@ void Update(uint3 id : SV_DispatchThreadID)
     p.data.x += time.x;
     p.forward += float3(0,-1,0) * time.x;
     p.position += p.forward  * time.x;
+    if (FrustomOut(p.position))
+    {
+        return;
+    }
     outputs[outputs.IncrementCounter()] = p;
 }
 

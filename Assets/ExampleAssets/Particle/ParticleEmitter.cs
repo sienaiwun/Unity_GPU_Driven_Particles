@@ -27,6 +27,7 @@ public class ParticleEmitter : MonoBehaviour
     private ComputeBuffer[] m_pingpongBuffer;
     public Material particalMat;
     public ComputeShader computeShader;
+    public bool enableCuling;
     private int m_currentBufferIndex = 0;
     private int initKernel, emitKernel, updateKernel,copyArgsKernel;
     const int THREAD_COUNT = 256;
@@ -123,21 +124,30 @@ public class ParticleEmitter : MonoBehaviour
         computeShader.Dispatch(copyArgsKernel, 1, 1, 1);
     }
 
-    private void UpdateParticles()
+    private void UpdateParticles(RenderingData data)
     {
         float time_delta = Time.deltaTime;
         timer += time_delta;
         computeShader.SetVector("time", new Vector2(time_delta, timer));
         computeShader.SetVector("transportPosition", transform.position);
         computeShader.SetVector("transportForward", transform.forward);
+
+
+        Camera mainCamera = data.cameraData.camera;
+        Matrix4x4 v = mainCamera.worldToCameraMatrix;
+        Matrix4x4 p = GL.GetGPUProjectionMatrix(mainCamera.projectionMatrix,false);
+      
+        Matrix4x4 vp = p * v;
+        computeShader.SetMatrix("gViewProj", vp);
+        computeShader.SetBool("enableCulling", enableCuling);
         DispatchUpdate();
         EmitParticles(Mathf.RoundToInt(Time.deltaTime * emissionRate));
         CopyIndirectArgs();
         SwapBuffer();
     }
-    void OnParticlesDrawing(ScriptableRenderContext context)
+    void OnParticlesDrawing(ScriptableRenderContext context, RenderingData data)
     {
-        UpdateParticles();
+        UpdateParticles(data);
         CommandBuffer cmd = CommandBufferPool.Get(m_ProfilerTag);
         using (new ProfilingSample(cmd, m_ProfilerTag))
         {
