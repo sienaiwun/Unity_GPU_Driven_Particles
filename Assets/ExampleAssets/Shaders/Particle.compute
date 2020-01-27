@@ -3,15 +3,17 @@
 #pragma kernel Emit
 #pragma kernel CopyIndirectArgs
 #define THREAD_COUNT 256
+#define PRESORT_GROUP_COUNT 2048
 #define PI 3.14159265351
 #include "common.hlsli"
 
 StructuredBuffer<Particle> inputs;
 RWStructuredBuffer<Particle> outputs;
-ByteAddressBuffer drawArgsBuffer;
+RWByteAddressBuffer drawArgsBuffer;
 RWByteAddressBuffer dispatchArgsBuffer;
 
 bool enableCulling;
+bool enableSorting;
 float maxCount;
 float3 transportPosition;
 float3 transportForward;
@@ -101,5 +103,5 @@ void Update(uint3 id : SV_DispatchThreadID)
 void CopyIndirectArgs(uint3 id : SV_DispatchThreadID)
 {
     uint particleCount = drawArgsBuffer.Load(4);
-    dispatchArgsBuffer.Store(0, (particleCount + THREAD_COUNT-1) / THREAD_COUNT);
+    dispatchArgsBuffer.Store(0, (particleCount + PRESORT_GROUP_COUNT -1) / PRESORT_GROUP_COUNT);
 }
