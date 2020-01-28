@@ -8,13 +8,13 @@ RWStructuredBuffer<uint> indexBuffer;
 matrix gViewProj;
 #define SIZE 2048
 #define HALFSIZE SIZE/2
-groupshared uint SortKeys[2048];
+groupshared uint SortKeys[SIZE];
 
-void FillSortKey(uint GroupStart, uint Offset, uint particleNum)
+void PackSortKey(uint GroupStart, uint Offset, uint particleNum)
 {
     if (GroupStart + Offset >= particleNum)
     {
-        SortKeys[Offset] = 0;        // Z = 0 will sort to the end of the list (back to front)
+        SortKeys[Offset] = 0;   
         return;
     }
     uint VertexIdx = GroupStart + Offset;
@@ -35,8 +35,8 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
         SortKeys[GroupStart + GI + HALFSIZE] = 0;
         return;
     }
-    FillSortKey(GroupStart, GI, particleNum);
-    FillSortKey(GroupStart, GI + HALFSIZE, particleNum);
+    PackSortKey(GroupStart, GI, particleNum);
+    PackSortKey(GroupStart, GI + HALFSIZE, particleNum);
     GroupMemoryBarrierWithGroupSync();
     [unroll]
     for (uint k = 2; k <= SIZE; k *= 2)
@@ -61,5 +61,4 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
     }
     indexBuffer[ GI] = SortKeys[GI] & 0x00ffff;
     indexBuffer[ GI + HALFSIZE] = SortKeys[GI + HALFSIZE] & 0x00ffff;
-   // indexBuffer[GI] = GI;
 }
