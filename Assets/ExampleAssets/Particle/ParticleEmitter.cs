@@ -44,7 +44,7 @@ public class ParticleEmitter : MonoBehaviour
 
     const int THREAD_COUNT = 256;
     const int particleCount = 2048;
-    const float emissionRate = 2000.0f*256;
+    const float emissionRate = 2048;
 
     #endregion
 
@@ -113,9 +113,7 @@ public class ParticleEmitter : MonoBehaviour
         emitKernel = computeShader.FindKernel("Emit");
         if (count > 0)
         {
-            computeShader.SetFloat("maxCount", particleCount);
-            computeShader.SetVector("seeds", new Vector3(Random.Range(1f, 10000f), Random.Range(1f, 10000f), Random.Range(1f, 10000f)));
-            computeShader.SetVector("lifeRange", new Vector2(minLifetime, maxLifetime));
+            
             computeShader.SetBuffer(emitKernel, "outputs", m_pingpongBuffer[m_currentBufferIndex]);
             computeShader.Dispatch(emitKernel, count, 1, 1);
         }
@@ -146,7 +144,9 @@ public class ParticleEmitter : MonoBehaviour
         computeShader.SetVector("time", new Vector2(time_delta, timer));
         computeShader.SetVector("transportPosition", transform.position);
         computeShader.SetVector("transportForward", transform.forward);
-
+        computeShader.SetFloat("maxCount", particleCount);
+        computeShader.SetVector("seeds", new Vector3(Random.Range(1f, 10000f), Random.Range(1f, 10000f), Random.Range(1f, 10000f)));
+        computeShader.SetVector("lifeRange", new Vector2(minLifetime, maxLifetime));
 
         Camera mainCamera = data.cameraData.camera;
         Matrix4x4 vp = GL.GetGPUProjectionMatrix(mainCamera.projectionMatrix, false) * mainCamera.worldToCameraMatrix;

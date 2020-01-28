@@ -4,12 +4,61 @@
 
 StructuredBuffer<Particle> inputs;
 RWByteAddressBuffer drawArgsBuffer;
-RWByteAddressBuffer indexBuffer;
+RWStructuredBuffer<uint> indexBuffer;
+matrix gViewProj;
 
+groupshared uint SortKeys[2048];
+
+void FillSortKey(uint GroupStart, uint Offset, uint particleNum)
+{
+    if (GroupStart + Offset >= particleNum)
+    {
+        SortKeys[Offset] = 0;        // Z = 0 will sort to the end of the list (back to front)
+        return;
+    }
+    uint VertexIdx = GroupStart + Offset;
+    Particle particle = inputs[VertexIdx];
+    float4 HPos = mul(gViewProj, float4(particle.position, 1));
+    float Depth = HPos.z / HPos.w;
+    SortKeys[Offset] = f32tof16(Depth)  << 16 | VertexIdx;;
+
+}
 [numthreads(1024, 1, 1)]
 void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
 {
     uint particleNum = drawArgsBuffer.Load(4);
-    uint GroupStart = Gid.x * 2048;
+    uint GroupStart =0;
+    if (GroupStart > particleNum)
+    {
+        SortKeys[GroupStart + GI] = 0;
+        SortKeys[GroupStart + GI + 1024] = 0;
+        return;
+    }
+    FillSortKey(GroupStart, GI, particleNum);
+    FillSortKey(GroupStart, GI + 1024, particleNum);
+    GroupMemoryBarrierWithGroupSync();
+    [unroll]
+    for (uint k = 2; k <= 2048; k *= 2)
+    {
+        [unroll]
+        for (uint j = k / 2; j > 0; j /= 2)
+        {
+            uint Index1 = InsertZeroBit(GI, j);
+            uint Index2 = Index1 ^ (k == j * 2 ? k - 1 : j);
 
+            uint A = SortKeys[Index1];
+            uint B = SortKeys[Index2];
+
+            if (A < B)
+            {
+                SortKeys[Index1] = B;
+                SortKeys[Index2] = A;
+            }
+
+            GroupMemoryBarrierWithGroupSync();
+        }
+    }
+    indexBuffer[ GI] = SortKeys[GI] & 0x00ffff;
+    indexBuffer[ GI + 1024] = SortKeys[GI + 1024] & 0x00ffff;
+   // indexBuffer[GI] = GI;
 }
