@@ -9,4 +9,11 @@ struct Particle
     float size;
     bool alive;
 };
+
+uint InsertZeroBit(uint Value, uint BitIdx)
+{
+    uint Mask = BitIdx - 1;
+    return (Value & ~Mask) << 1 | (Value & Mask);
+}
+
 #endif

@@ -1,0 +1,15 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ParticleSort
+#include "common.hlsli"
+
+StructuredBuffer<Particle> inputs;
+RWByteAddressBuffer drawArgsBuffer;
+RWByteAddressBuffer indexBuffer;
+
+[numthreads(1024, 1, 1)]
+void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
+{
+    uint particleNum = drawArgsBuffer.Load(4);
+    uint GroupStart = Gid.x * 2048;
+
+}

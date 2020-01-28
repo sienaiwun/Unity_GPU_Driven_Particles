@@ -72,7 +72,7 @@ public class PlanerShadow : MonoBehaviour
         }
     }
     
-    void OnRenderObjectSRP(ScriptableRenderContext context)
+    void OnRenderObjectSRP(ScriptableRenderContext context, RenderingData data)
     {
         if (m_material == null)
             return;

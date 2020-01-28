@@ -33,12 +33,14 @@
             #pragma target 5.0
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile _ ENABLE_SORTINT
 
             #include "UnityCG.cginc"
             #include "common.hlsli"
             uniform sampler2D _MainTex;
 
             StructuredBuffer<float3> quad;
+            StructuredBuffer<uint> indexBuffer;
 
             struct v2f
             {
@@ -54,7 +56,11 @@
                 v2f o;
                 float2 	Tex = float2(uint2(id, id << 1) & 2);
                 float2 Pos = float4(lerp(float2(-1, 1), float2(1, -1), Tex), 0, 1);
+#if defined(ENABLE_SORTINT)
+                float3 local_positon = quad[indexBuffer[id]];
+#else
                 float3 local_positon = quad[id];
+#endif
                 Particle particle = particles[inst];
                
                 o.pos = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, float4(local_positon.xyz + particle.position, 1.0f)));;
