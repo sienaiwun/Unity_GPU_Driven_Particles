@@ -6,7 +6,8 @@ StructuredBuffer<Particle> inputs;
 RWByteAddressBuffer drawArgsBuffer;
 RWStructuredBuffer<uint> indexBuffer;
 matrix gViewProj;
-
+#define SIZE 2048
+#define HALFSIZE SIZE/2
 groupshared uint SortKeys[2048];
 
 void FillSortKey(uint GroupStart, uint Offset, uint particleNum)
@@ -23,7 +24,7 @@ void FillSortKey(uint GroupStart, uint Offset, uint particleNum)
     SortKeys[Offset] = f32tof16(Depth)  << 16 | VertexIdx;;
 
 }
-[numthreads(1024, 1, 1)]
+[numthreads(HALFSIZE, 1, 1)]
 void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
 {
     uint particleNum = drawArgsBuffer.Load(4);
@@ -31,14 +32,14 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
     if (GroupStart > particleNum)
     {
         SortKeys[GroupStart + GI] = 0;
-        SortKeys[GroupStart + GI + 1024] = 0;
+        SortKeys[GroupStart + GI + HALFSIZE] = 0;
         return;
     }
     FillSortKey(GroupStart, GI, particleNum);
-    FillSortKey(GroupStart, GI + 1024, particleNum);
+    FillSortKey(GroupStart, GI + HALFSIZE, particleNum);
     GroupMemoryBarrierWithGroupSync();
     [unroll]
-    for (uint k = 2; k <= 2048; k *= 2)
+    for (uint k = 2; k <= SIZE; k *= 2)
     {
         [unroll]
         for (uint j = k / 2; j > 0; j /= 2)
@@ -49,7 +50,7 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
             uint A = SortKeys[Index1];
             uint B = SortKeys[Index2];
 
-            if (A < B)
+            if (A > B)
             {
                 SortKeys[Index1] = B;
                 SortKeys[Index2] = A;
@@ -59,6 +60,6 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
         }
     }
     indexBuffer[ GI] = SortKeys[GI] & 0x00ffff;
-    indexBuffer[ GI + 1024] = SortKeys[GI + 1024] & 0x00ffff;
+    indexBuffer[ GI + HALFSIZE] = SortKeys[GI + HALFSIZE] & 0x00ffff;
    // indexBuffer[GI] = GI;
 }

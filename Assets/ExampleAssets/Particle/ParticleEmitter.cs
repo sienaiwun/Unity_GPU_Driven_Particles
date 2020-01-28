@@ -44,7 +44,7 @@ public class ParticleEmitter : MonoBehaviour
 
     const int THREAD_COUNT = 256;
     const int particleCount = 2048;
-    const float emissionRate = 2048;
+    const float emissionRate = particleCount;
 
     #endregion
 
@@ -132,9 +132,11 @@ public class ParticleEmitter : MonoBehaviour
     {
         sortKernel = particleSortCS.FindKernel("ParticleSort");
         particleSortCS.SetBuffer(sortKernel, "drawArgsBuffer", indirectdrawbuffer);
-        particleSortCS.SetBuffer(sortKernel, "inputs", m_pingpongBuffer[1 - m_currentBufferIndex]);
+        particleSortCS.SetBuffer(sortKernel, "inputs", m_pingpongBuffer[m_currentBufferIndex]);
         particleSortCS.SetBuffer(sortKernel, "indexBuffer", indexBuffer);
         particleSortCS.DispatchIndirect(sortKernel, dispatchArgsBuffer);
+        uint[] indexData = new uint[bufferSize];
+        indexBuffer.GetData(indexData);
     }
 
     private void UpdateParticles(CommandBuffer cmd, RenderingData data)
@@ -151,17 +153,19 @@ public class ParticleEmitter : MonoBehaviour
         Camera mainCamera = data.cameraData.camera;
         Matrix4x4 vp = GL.GetGPUProjectionMatrix(mainCamera.projectionMatrix, false) * mainCamera.worldToCameraMatrix;
         computeShader.SetMatrix("gViewProj", vp);
+        particleSortCS.SetMatrix("gViewProj", vp);
         computeShader.SetBool("enableCulling", enableCuling);
         computeShader.SetBool("enableSorting", enableSorting);
         DispatchUpdate();
         EmitParticles(Mathf.RoundToInt(Time.deltaTime * emissionRate));
         cmd.CopyCounterValue(m_pingpongBuffer[m_currentBufferIndex], indirectdrawbuffer, 4);// m_pingpongBuffer[m_currentBufferIndex] is the output buffer
         CopyIndirectArgs();
-        SwapBuffer();
         if (enableSorting) // after buffer swap,
         {
             SortParticles();
         }
+        SwapBuffer();
+        
     }
     void OnParticlesDrawing(ScriptableRenderContext context, RenderingData data)
     {
