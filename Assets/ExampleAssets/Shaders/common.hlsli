@@ -7,7 +7,7 @@ struct Particle
     float3 data; //x = age, y = lifetime, z = random
     float4 color;
     float size;
-    bool alive;
+    float alive;
 };
 
 uint InsertZeroBit(uint Value, uint BitIdx)

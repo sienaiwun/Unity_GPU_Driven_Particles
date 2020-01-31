@@ -9,7 +9,7 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: Particles
   m_Shader: {fileID: 4800000, guid: 86786e78ba60e9543924cb13e8a61c28, type: 3}
-  m_ShaderKeywords: 
+  m_ShaderKeywords: ENABLE_SORTINT
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0

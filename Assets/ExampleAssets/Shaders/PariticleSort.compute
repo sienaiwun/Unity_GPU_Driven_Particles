@@ -8,17 +8,23 @@ RWStructuredBuffer<uint> indexBuffer;
 matrix gViewProj;
 #define SIZE 2048
 #define HALFSIZE SIZE/2
+#define TOPMOST 0xffffffff
 groupshared uint SortKeys[SIZE];
 
 void PackSortKey(uint GroupStart, uint Offset, uint particleNum)
 {
     if (GroupStart + Offset >= particleNum)
     {
-        SortKeys[Offset] = 0;   
+        SortKeys[Offset] = TOPMOST;
         return;
     }
     uint VertexIdx = GroupStart + Offset;
     Particle particle = inputs[VertexIdx];
+    if (particle.alive == 0.0f)
+    {
+        SortKeys[Offset] = TOPMOST;
+        return;
+    }
     float4 HPos = mul(gViewProj, float4(particle.position, 1));
     float Depth = HPos.z / HPos.w;
     SortKeys[Offset] = f32tof16(Depth)  << 16 | VertexIdx;;
@@ -31,8 +37,8 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
     uint GroupStart =0;
     if (GroupStart > particleNum)
     {
-        SortKeys[GroupStart + GI] = 0;
-        SortKeys[GroupStart + GI + HALFSIZE] = 0;
+        SortKeys[GroupStart + GI] = TOPMOST;
+        SortKeys[GroupStart + GI + HALFSIZE] = TOPMOST;
         return;
     }
     PackSortKey(GroupStart, GI, particleNum);
@@ -59,6 +65,7 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
             GroupMemoryBarrierWithGroupSync();
         }
     }
-    indexBuffer[ GI] = SortKeys[GI] & 0x00ffff;
-    indexBuffer[ GI + HALFSIZE] = SortKeys[GI + HALFSIZE] & 0x00ffff;
+   
+    indexBuffer[ GI] = SortKeys[GI] & 0x0000ffff;
+    indexBuffer[GI + HALFSIZE] =  SortKeys[GI + HALFSIZE] & 0x0000ffff;
 }

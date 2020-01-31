@@ -7,7 +7,7 @@
 #define PI 3.14159265351
 #include "common.hlsli"
 
-StructuredBuffer<Particle> inputs;
+RWStructuredBuffer<Particle> inputs;
 RWStructuredBuffer<Particle> outputs;
 RWByteAddressBuffer drawArgsBuffer;
 RWByteAddressBuffer dispatchArgsBuffer;
@@ -53,7 +53,7 @@ float3 randomPointOnSphere(float u, float v, float radius)
 void Init(uint3 id : SV_DispatchThreadID)
 {
     outputs[id.x].color = float4(1.0f, 1.0f, 1.0f, 1.0f);
-    outputs[id.x].alive = false;
+    outputs[id.x].alive = 0.0f;
     outputs[id.x].size = 1.0f;
     outputs[id.x].data.x = 0.0f;
     outputs[id.x].data.y = lifeRange.x + (lifeRange.y - lifeRange.x) * rand(seeds.zxy / (id + 1));
@@ -69,10 +69,10 @@ void Emit(uint3 svid : SV_DispatchThreadID)
         return;
     }
     Particle p;
-    p.alive = true;
+    p.alive = 1.0f;
     p.position = transportPosition;
     float radius = 1.0f;
-    p.forward = transportForward*2 + randomPointOnSphere(rand(seeds.xyz / (id + 1)), rand(seeds.yzx / (id + 1)), radius * rand(seeds.zyx / (id + 1)));
+    p.forward = transportForward + randomPointOnSphere(rand(seeds.xyz / (id + 1)), rand(seeds.yzx / (id + 1)), radius * rand(seeds.zyx / (id + 1)));
     p.data.x = 0.0f;
     p.data.y = lifeRange.x + (lifeRange.y - lifeRange.x) * rand(seeds.zxy / (id + 1));
     p.data.z = 0.0f;
@@ -85,15 +85,17 @@ void Emit(uint3 svid : SV_DispatchThreadID)
 void Update(uint3 id : SV_DispatchThreadID)
 {
     Particle p = inputs[id.x];
-    if (p.data.x + time.x >= p.data.y)
+    if (p.alive == 0.0f)
     {
         return;
     }
     p.data.x += time.x;
     p.forward += float3(0,-1,0) * time.x;
     p.position += p.forward  * time.x;
-    if (FrustomOut(p.position))
+    if (p.data.x + time.x >= p.data.y)
     {
+        p.alive = 0.0f;
+        inputs[id.x] = p;
         return;
     }
     uint oid = outputs.IncrementCounter();

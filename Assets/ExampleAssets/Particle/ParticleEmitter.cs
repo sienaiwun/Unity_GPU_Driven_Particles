@@ -20,7 +20,7 @@ public class ParticleEmitter : MonoBehaviour
         public Vector3 data; //x = age, y = lifetime
         public Color color;
         public float size;
-        bool alive;
+        public float alive;
     }
     
    
@@ -44,7 +44,7 @@ public class ParticleEmitter : MonoBehaviour
 
     const int THREAD_COUNT = 256;
     const int particleCount = 2048;
-    const float emissionRate = particleCount;
+    const float emissionRate = particleCount*0.1f;
 
     #endregion
 
@@ -139,7 +139,7 @@ public class ParticleEmitter : MonoBehaviour
         indexBuffer.GetData(indexData);
     }
 
-    private void UpdateParticles(CommandBuffer cmd, RenderingData data)
+    private void UpdateParticles(RenderingData data)
     {
         float time_delta = Time.deltaTime;
         timer += time_delta;
@@ -158,7 +158,7 @@ public class ParticleEmitter : MonoBehaviour
         computeShader.SetBool("enableSorting", enableSorting);
         DispatchUpdate();
         EmitParticles(Mathf.RoundToInt(Time.deltaTime * emissionRate));
-        cmd.CopyCounterValue(m_pingpongBuffer[m_currentBufferIndex], indirectdrawbuffer, 4);// m_pingpongBuffer[m_currentBufferIndex] is the output buffer
+        ComputeBuffer.CopyCount(m_pingpongBuffer[m_currentBufferIndex], indirectdrawbuffer, 4);// m_pingpongBuffer[m_currentBufferIndex] is the output buffer
         CopyIndirectArgs();
         if (enableSorting) // after buffer swap,
         {
@@ -169,9 +169,8 @@ public class ParticleEmitter : MonoBehaviour
     }
     void OnParticlesDrawing(ScriptableRenderContext context, RenderingData data)
     {
-        
+        UpdateParticles(data);
         CommandBuffer cmd = CommandBufferPool.Get(m_ProfilerTag);
-        UpdateParticles(cmd,data);
         using (new ProfilingSample(cmd, m_ProfilerTag))
         {
             cmd.SetGlobalBuffer("particles", m_pingpongBuffer[1 - m_currentBufferIndex]);
@@ -199,7 +198,7 @@ public class ParticleEmitter : MonoBehaviour
         quad = new ComputeBuffer(6, Marshal.SizeOf(typeof(Vector3)));
         indirectdrawbuffer = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
         dispatchArgsBuffer = new ComputeBuffer(3, sizeof(int), ComputeBufferType.IndirectArguments);
-        indirectdrawbuffer.SetData(new int[] { 6, 1, 0, 0 });
+        indirectdrawbuffer.SetData(new int[] { 6, 0, 0, 0 });
         dispatchArgsBuffer.SetData(new int[] { 0, 1, 1 });
         quad.SetData(new[]
           {
