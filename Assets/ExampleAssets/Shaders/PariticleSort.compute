@@ -1,19 +1,30 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel ParticleSort
+#pragma kernel InnerSort
+#pragma kernel OuterSort
+
 #include "common.hlsli"
 
 StructuredBuffer<Particle> inputs;
-RWByteAddressBuffer drawArgsBuffer;
+ByteAddressBuffer drawArgsBuffer;
 RWStructuredBuffer<uint> indexBuffer;
 matrix gViewProj;
 #define SIZE 2048
 #define HALFSIZE SIZE/2
 #define TOPMOST 0xffffffff
 groupshared uint SortKeys[SIZE];
+int j;
+int k;
+
+
+void LoadKeyIndexPair(uint index, uint particleNum)
+{
+    SortKeys[index & 2047] = index < particleNum ? indexBuffer[index] : TOPMOST;
+}
 
 void PackSortKey(uint GroupStart, uint Offset, uint particleNum)
 {
-    if (GroupStart + Offset >= particleNum)
+    if (GroupStart + Offset > particleNum)
     {
         SortKeys[Offset] = TOPMOST;
         return;
@@ -33,12 +44,12 @@ void PackSortKey(uint GroupStart, uint Offset, uint particleNum)
 [numthreads(HALFSIZE, 1, 1)]
 void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
 {
-    uint particleNum = drawArgsBuffer.Load(4);
-    uint GroupStart =0;
+    uint particleNum =  drawArgsBuffer.Load(4);
+    uint GroupStart = Gid.x *2048;;
     if (GroupStart > particleNum)
     {
-        SortKeys[GroupStart + GI] = TOPMOST;
-        SortKeys[GroupStart + GI + HALFSIZE] = TOPMOST;
+        indexBuffer[GroupStart + GI] = TOPMOST;
+        indexBuffer[GroupStart + GI + HALFSIZE] = TOPMOST;
         return;
     }
     PackSortKey(GroupStart, GI, particleNum);
@@ -66,6 +77,55 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
         }
     }
    
-    indexBuffer[ GI] = SortKeys[GI] & 0x0000ffff;
-    indexBuffer[GI + HALFSIZE] =  SortKeys[GI + HALFSIZE] & 0x0000ffff;
+    indexBuffer[ GI] = SortKeys[GI] ;
+    indexBuffer[GI + HALFSIZE] =  SortKeys[GI + HALFSIZE] ;
 }
+
+
+[numthreads(HALFSIZE, 1, 1)]
+void InnerSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
+{
+    uint particleNum = drawArgsBuffer.Load(4);
+    const uint GroupStart = Gid.x * 2048;
+    LoadKeyIndexPair(GroupStart + GI, particleNum);
+    LoadKeyIndexPair(GroupStart + GI + 1024, particleNum);
+    GroupMemoryBarrierWithGroupSync();
+    [unroll]
+    for (uint j = 1024; j > 0; j /= 2)
+    {
+        uint Index1 = InsertZeroBit(GI, j);
+        uint Index2 = Index1 ^ j;
+
+        uint A = SortKeys[Index1];
+        uint B = SortKeys[Index2];
+
+        if (A > B)
+        {
+            SortKeys[Index1] = B;
+            SortKeys[Index2] = A;
+        }
+
+        GroupMemoryBarrierWithGroupSync();
+    }
+
+    indexBuffer[GI] = SortKeys[GI];
+    indexBuffer[GI + HALFSIZE] = SortKeys[GI + HALFSIZE];
+}
+
+[numthreads(HALFSIZE, 1, 1)]
+void OuterSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
+{
+    uint particleNum = drawArgsBuffer.Load(4);
+    uint Index2 = InsertOneBit((uint)DTid.x, (uint)j);
+    uint Index1 = Index2 ^ (k == 2 * j ? k - 1 : j);
+    if (Index2 >= particleNum)
+        return;
+    uint A = indexBuffer[Index1];
+    uint B = indexBuffer[Index2];
+    if (A > B)
+    {
+        indexBuffer[Index1] = B;
+        indexBuffer[Index2] = A;
+    }
+}
+

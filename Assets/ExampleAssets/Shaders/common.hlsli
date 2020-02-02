@@ -10,10 +10,16 @@ struct Particle
     float alive;
 };
 
-uint InsertZeroBit(uint Value, uint BitIdx)
+uint InsertZeroBit(uint Value, uint BitIdx) //bit idx is the power of 2
 {
     uint Mask = BitIdx - 1;
     return (Value & ~Mask) << 1 | (Value & Mask);
+}
+
+uint InsertOneBit(uint Value, uint BitIdx) //bit idx is the power of 2
+{
+    uint Mask = BitIdx - 1;
+    return (Value & ~Mask) << 1 | (Value & Mask) | BitIdx;
 }
 
 #endif

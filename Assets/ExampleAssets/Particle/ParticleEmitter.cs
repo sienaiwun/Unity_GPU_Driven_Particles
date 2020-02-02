@@ -34,8 +34,8 @@ public class ParticleEmitter : MonoBehaviour
 
     private int m_currentBufferIndex = 0;
     private int initKernel, emitKernel, updateKernel,copyArgsKernel;
-    private int sortKernel;
-    private int bufferSize ;
+    private int initSortKernel, outerSortKernel,innerSortKernel;
+    private int bufferSize;
     private int groupCount;
     private float timer = 0.0f;
     private ComputeBuffer[] m_pingpongBuffer;
@@ -43,7 +43,7 @@ public class ParticleEmitter : MonoBehaviour
     private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer; // counter is used to get the number of the pools
 
     const int THREAD_COUNT = 256;
-    const int particleCount = 2048;
+    const int particleCount = 2048*8;//for simplicity, particleCount is the pow(2,xx)*2048
     const float emissionRate = particleCount*0.1f;
 
     #endregion
@@ -127,15 +127,37 @@ public class ParticleEmitter : MonoBehaviour
         computeShader.SetBuffer(copyArgsKernel, "drawArgsBuffer", indirectdrawbuffer);
         computeShader.SetBuffer(copyArgsKernel, "dispatchArgsBuffer", dispatchArgsBuffer);
         computeShader.Dispatch(copyArgsKernel, 1, 1, 1);
+
     }
 
     private void SortParticles()
     {
-        sortKernel = particleSortCS.FindKernel("ParticleSort");
-        particleSortCS.SetBuffer(sortKernel, "drawArgsBuffer", indirectdrawbuffer);
-        particleSortCS.SetBuffer(sortKernel, "inputs", m_pingpongBuffer[m_currentBufferIndex]);
-        particleSortCS.SetBuffer(sortKernel, "indexBuffer", indexBuffer);
-        particleSortCS.DispatchIndirect(sortKernel, dispatchArgsBuffer);
+        initSortKernel = particleSortCS.FindKernel("ParticleSort");
+        particleSortCS.SetBuffer(initSortKernel, "drawArgsBuffer", indirectdrawbuffer);
+        particleSortCS.SetBuffer(initSortKernel, "inputs", m_pingpongBuffer[m_currentBufferIndex]);
+        particleSortCS.SetBuffer(initSortKernel, "indexBuffer", indexBuffer);
+        particleSortCS.DispatchIndirect(initSortKernel, dispatchArgsBuffer);
+        if(bufferSize>2048)
+        {
+            outerSortKernel = particleSortCS.FindKernel("OuterSort");
+            innerSortKernel = particleSortCS.FindKernel("InnerSort");
+            particleSortCS.SetBuffer(outerSortKernel, "drawArgsBuffer", indirectdrawbuffer);
+            particleSortCS.SetBuffer(innerSortKernel, "drawArgsBuffer", indirectdrawbuffer);
+            int alignedMaxNumElements = Mathf.NextPowerOfTwo(bufferSize);
+
+            int groupSize = Mathf.RoundToInt(alignedMaxNumElements / 4096);
+            for (int k = 4096; k <= alignedMaxNumElements; k *= 2)
+            {
+                particleSortCS.SetInt("k", k);
+                for (int j = k / 2; j >= 2048; j /= 2)
+                {
+                    particleSortCS.SetInt("j", j);
+                    particleSortCS.Dispatch(outerSortKernel,groupSize, 1, 1);
+                }
+                particleSortCS.Dispatch(innerSortKernel, groupSize, 1, 1);
+            }
+
+        }
     }
 
     private void UpdateParticles(RenderingData data)

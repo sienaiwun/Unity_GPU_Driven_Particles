@@ -59,7 +59,7 @@
 
                 float3 local_positon = quad[id];
 #if defined(ENABLE_SORTINT)
-                Particle particle = particles[indexBuffer[inst]];
+                Particle particle = particles[indexBuffer[inst] & 0x0000ffff];
 #else
                 Particle particle = particles[inst];
 #endif
@@ -77,7 +77,6 @@
             fixed4 frag(v2f i) : COLOR
             {
                 return i.col*tex2D(_MainTex, i.uv);
-                //return (1.0f).xxxx;
             }
 
             ENDCG
