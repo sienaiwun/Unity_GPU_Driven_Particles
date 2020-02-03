@@ -77,8 +77,8 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
         }
     }
    
-    indexBuffer[ GI] = SortKeys[GI] ;
-    indexBuffer[GI + HALFSIZE] =  SortKeys[GI + HALFSIZE] ;
+    indexBuffer[GroupStart + GI] = SortKeys[GI];
+    indexBuffer[GroupStart + GI + HALFSIZE] =  SortKeys[GI + HALFSIZE] ;
 }
 
 
@@ -108,8 +108,8 @@ void InnerSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI
         GroupMemoryBarrierWithGroupSync();
     }
 
-    indexBuffer[GI] = SortKeys[GI];
-    indexBuffer[GI + HALFSIZE] = SortKeys[GI + HALFSIZE];
+    indexBuffer[GroupStart + GI] = SortKeys[GI];
+    indexBuffer[GroupStart + GI + HALFSIZE] = SortKeys[GI + HALFSIZE];
 }
 
 [numthreads(HALFSIZE, 1, 1)]

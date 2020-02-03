@@ -109,7 +109,7 @@ void Update(uint3 id : SV_DispatchThreadID)
 [numthreads(1, 1, 1)]
 void CopyIndirectArgs(uint3 id : SV_DispatchThreadID)
 {
-    uint particleCount = drawArgsBuffer.Load(4);
+    uint particleCount = drawArgsBuffer.Load(4)-1;// extra incrementCount()
     particleCount = min(particleCount, maxCount);
     drawArgsBuffer.Store(4, particleCount);
     dispatchArgsBuffer.Store(0, (particleCount + PRESORT_GROUP_COUNT -1) / PRESORT_GROUP_COUNT);
