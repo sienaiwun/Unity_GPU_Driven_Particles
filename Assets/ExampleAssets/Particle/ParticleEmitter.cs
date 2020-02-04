@@ -43,7 +43,7 @@ public class ParticleEmitter : MonoBehaviour
     private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer; // counter is used to get the number of the pools
 
     const int THREAD_COUNT = 256;
-    const int particleCount = 2048;//for simplicity, particleCount is the pow(2,xx)*2048
+    const int particleCount = 2048*8;//for simplicity, particleCount is the pow(2,xx)*2048
     const float emissionRate = particleCount*0.1f;
 
     #endregion
@@ -144,17 +144,15 @@ public class ParticleEmitter : MonoBehaviour
             particleSortCS.SetBuffer(outerSortKernel, "drawArgsBuffer", indirectdrawbuffer);
             particleSortCS.SetBuffer(innerSortKernel, "drawArgsBuffer", indirectdrawbuffer);
             int alignedMaxNumElements = Mathf.NextPowerOfTwo(bufferSize);
-
-            int groupSize = Mathf.RoundToInt(alignedMaxNumElements / 2048);
             for (int k = 4096; k <= alignedMaxNumElements; k *= 2)
             {
                 particleSortCS.SetInt("k", k);
                 for (int j = k / 2; j >= 2048; j /= 2)
                 {
                     particleSortCS.SetInt("j", j);
-                    particleSortCS.Dispatch(outerSortKernel,groupSize, 1, 1);
+                    particleSortCS.DispatchIndirect(outerSortKernel, dispatchArgsBuffer);
                 }
-                particleSortCS.Dispatch(innerSortKernel, groupSize, 1, 1);
+                particleSortCS.DispatchIndirect(innerSortKernel, dispatchArgsBuffer);
             }
 
         }
