@@ -232,6 +232,9 @@ public class ParticleEmitter : MonoBehaviour
         int screenWidth = data.cameraData.cameraTargetDescriptor.width;
         int screenHeight = data.cameraData.cameraTargetDescriptor.height;      
         cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "mipmap8", mipmap8.Identifier());
+        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "mipmap16", mipmap16.Identifier());
+        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "mipmap32", mipmap32.Identifier());
+        cmd.SetComputeFloatParams(depthBoundsCS, "gRcpBufferDim", new float[] { 1.0f / screenWidth, 1.0f / screenHeight });
         cmd.DispatchCompute(depthBoundsCS, depthboundKernel, screenWidth, screenHeight, 1);
  
     }
@@ -257,20 +260,51 @@ public class ParticleEmitter : MonoBehaviour
         int screenWidth = data.cameraData.cameraTargetDescriptor.width;
         int screenHeight = data.cameraData.cameraTargetDescriptor.height;
         CommandBuffer cmd = CommandBufferPool.Get(m_BeginFrmaeProfilerTag);
+        int bufferWidth8 = (screenWidth + 7) / 8;
+        int bufferWidth16 = (screenWidth + 15) / 16;
+        int bufferWidth32 = (screenWidth + 31) / 32;
+        int bufferHeight8 = (screenHeight + 7) / 8;
+        int bufferHeight16 = (screenHeight + 15) / 16;
+        int bufferHeight32 = (screenHeight + 31) / 32;
         using (new ProfilingSample(cmd, m_BeginFrmaeProfilerTag))
         {
-            RenderTextureDescriptor desc = new RenderTextureDescriptor
+            RenderTextureDescriptor desc8 = new RenderTextureDescriptor
             {
-                width = screenWidth,
-                height = screenHeight,
+                width = bufferWidth8,
+                height = bufferHeight8,
                 graphicsFormat = GraphicsFormat.R32_SFloat,
                 enableRandomWrite = true,
                 dimension = TextureDimension.Tex2D,
                 bindMS = false,
                 msaaSamples = 1,
+                useMipMap = false,
+            };
+            RenderTextureDescriptor desc16 = new RenderTextureDescriptor
+            {
+                width = bufferWidth16,
+                height = bufferHeight16,
+                graphicsFormat = GraphicsFormat.R32_SFloat,
+                enableRandomWrite = true,
+                dimension = TextureDimension.Tex2D,
+                bindMS = false,
+                msaaSamples = 1,
+                useMipMap = false,
+            };
+            RenderTextureDescriptor desc32 = new RenderTextureDescriptor
+            {
+                width = bufferWidth32,
+                height = bufferHeight32,
+                graphicsFormat = GraphicsFormat.R32_SFloat,
+                enableRandomWrite = true,
+                dimension = TextureDimension.Tex2D,
+                bindMS = false,
+                msaaSamples = 1,
+                useMipMap = false,
             };
 
-            cmd.GetTemporaryRT(mipmap8.id, desc);
+            cmd.GetTemporaryRT(mipmap8.id, desc8);
+            cmd.GetTemporaryRT(mipmap16.id, desc16);
+            cmd.GetTemporaryRT(mipmap32.id, desc32);
         }
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
@@ -287,6 +321,8 @@ public class ParticleEmitter : MonoBehaviour
         using (new ProfilingSample(cmd, m_EndFrmaeProfilerTag))
         {
             cmd.ReleaseTemporaryRT(mipmap8.id);
+            cmd.ReleaseTemporaryRT(mipmap16.id);
+            cmd.ReleaseTemporaryRT(mipmap32.id);
         }
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
@@ -342,7 +378,11 @@ public class ParticleEmitter : MonoBehaviour
         m_pingpongBuffer[1] = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)), ComputeBufferType.Append);
         indexBuffer = new ComputeBuffer(bufferSize, sizeof(int), ComputeBufferType.Raw);
         mipmap8 = new RenderTargetHandle();
+        mipmap16 = new RenderTargetHandle();
+        mipmap32 = new RenderTargetHandle();
         mipmap8.Init("mipmap8");
+        mipmap16.Init("mipmap16");
+        mipmap32.Init("mipmap32");
     }
 
     private void ReleaseBuffer()
