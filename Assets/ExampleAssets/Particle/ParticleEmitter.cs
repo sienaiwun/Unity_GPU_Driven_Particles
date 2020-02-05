@@ -12,6 +12,8 @@ public class ParticleEmitter : MonoBehaviour
     #region Const
     static readonly string m_ProfilerTag = "Procedual Particals";
     static readonly string m_DepthboundProfilerTag = "Depth bounds";
+    static readonly string m_BeginFrmaeProfilerTag = "Init Frame";
+    static readonly string m_EndFrmaeProfilerTag = "End Frame";
     #endregion
 
     #region varialbe
@@ -43,8 +45,8 @@ public class ParticleEmitter : MonoBehaviour
     private int groupCount;
     private float timer = 0.0f;
     private ComputeBuffer[] m_pingpongBuffer;
-    private RenderTargetHandle mipmap1;
-    CustomDrawing m_drawing,m_depthBoundDrawing;
+    private RenderTargetHandle mipmap8, mipmap16, mipmap32;
+    CustomDrawing m_drawing,m_depthBoundDrawing,m_beginFrame,m_endFrame;
     private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer; // counter is used to get the number of the pools
 
     const int THREAD_COUNT = 256;
@@ -64,6 +66,14 @@ public class ParticleEmitter : MonoBehaviour
         {
             m_depthBoundDrawing = AddDrawcall(RenderPassEvent.BeforeRenderingSkybox, OnDepthBounds);
         }
+        if(m_beginFrame == null)
+        {
+            m_beginFrame = AddDrawcall(RenderPassEvent.BeforeRendering, OnBeginFrame);
+        }
+        if (m_endFrame == null)
+        {
+            m_endFrame = AddDrawcall(RenderPassEvent.AfterRendering, OnEndFrame);
+        }
         OnInit();
     }
 
@@ -76,6 +86,14 @@ public class ParticleEmitter : MonoBehaviour
         if(m_depthBoundDrawing!=null)
         {
             UnityEngine.Rendering.Universal.ForwardRenderer.staticDrawingRender.Remove(m_depthBoundDrawing);
+        }
+        if (m_beginFrame != null)
+        {
+            UnityEngine.Rendering.Universal.ForwardRenderer.staticDrawingRender.Remove(m_beginFrame);
+        }
+        if (m_endFrame != null)
+        {
+            UnityEngine.Rendering.Universal.ForwardRenderer.staticDrawingRender.Remove(m_endFrame);
         }
     }
 
@@ -208,27 +226,14 @@ public class ParticleEmitter : MonoBehaviour
 
     void DepthBoundCalculation(CommandBuffer cmd,  RenderingData data, ScriptableRenderer render)
     {
+        ForwardRenderer forwardRenderer = render as ForwardRenderer;
         depthboundKernel = depthBoundsCS.FindKernel("CSMain");
-        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "DepthTexture", render.cameraDepth);
+        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "DepthTexture", forwardRenderer.ActiveCameraDepthRT);
         int screenWidth = data.cameraData.cameraTargetDescriptor.width;
-        int screenHeight = data.cameraData.cameraTargetDescriptor.height;
-        RenderTextureDescriptor desc = new RenderTextureDescriptor
-        {
-            width = screenWidth,
-            height = screenHeight,
-            graphicsFormat = GraphicsFormat.R32_SFloat,
-            enableRandomWrite = true,
-            dimension = TextureDimension.Tex2D,
-            bindMS = false,
-            msaaSamples = 1,
-        };
-        mipmap1 = new RenderTargetHandle();
-        mipmap1.Init("mipmap1");
-        cmd.GetTemporaryRT(mipmap1.id, desc);
-       
-        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "mipmap1", mipmap1.Identifier());
+        int screenHeight = data.cameraData.cameraTargetDescriptor.height;      
+        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "mipmap8", mipmap8.Identifier());
         cmd.DispatchCompute(depthBoundsCS, depthboundKernel, screenWidth, screenHeight, 1);
-        cmd.ReleaseTemporaryRT(mipmap1.id);
+ 
     }
 
     void OnDepthBounds(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
@@ -245,6 +250,49 @@ public class ParticleEmitter : MonoBehaviour
         context.Submit();
     }
 
+    void OnBeginFrame(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
+    {
+        if (!enableCuling)
+            return;
+        int screenWidth = data.cameraData.cameraTargetDescriptor.width;
+        int screenHeight = data.cameraData.cameraTargetDescriptor.height;
+        CommandBuffer cmd = CommandBufferPool.Get(m_BeginFrmaeProfilerTag);
+        using (new ProfilingSample(cmd, m_BeginFrmaeProfilerTag))
+        {
+            RenderTextureDescriptor desc = new RenderTextureDescriptor
+            {
+                width = screenWidth,
+                height = screenHeight,
+                graphicsFormat = GraphicsFormat.R32_SFloat,
+                enableRandomWrite = true,
+                dimension = TextureDimension.Tex2D,
+                bindMS = false,
+                msaaSamples = 1,
+            };
+
+            cmd.GetTemporaryRT(mipmap8.id, desc);
+        }
+        context.ExecuteCommandBuffer(cmd);
+        CommandBufferPool.Release(cmd);
+        context.Submit();
+    }
+
+    void OnEndFrame(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
+    {
+        if (!enableCuling)
+            return;
+        int screenWidth = data.cameraData.cameraTargetDescriptor.width;
+        int screenHeight = data.cameraData.cameraTargetDescriptor.height;
+        CommandBuffer cmd = CommandBufferPool.Get(m_EndFrmaeProfilerTag);
+        using (new ProfilingSample(cmd, m_EndFrmaeProfilerTag))
+        {
+            cmd.ReleaseTemporaryRT(mipmap8.id);
+        }
+        context.ExecuteCommandBuffer(cmd);
+        CommandBufferPool.Release(cmd);
+        context.Submit();
+    }
+
     void OnParticlesDrawing(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
     {
         UpdateParticles(data);
@@ -252,7 +300,7 @@ public class ParticleEmitter : MonoBehaviour
         using (new ProfilingSample(cmd, m_ProfilerTag))
         {
             ForwardRenderer forwardRenderer = render as ForwardRenderer;
-            cmd.SetRenderTarget(forwardRenderer.m_ActiveCameraColorAttachment.Identifier(), forwardRenderer.m_ActiveCameraDepthAttachment.Identifier());
+            cmd.SetRenderTarget(forwardRenderer.ActiveCameraColorRT, forwardRenderer.ActiveCameraDepthRT);
             cmd.SetGlobalBuffer("particles", m_pingpongBuffer[1 - m_currentBufferIndex]);
             cmd.SetGlobalBuffer("quad", quad);
             if(enableSorting)
@@ -293,6 +341,8 @@ public class ParticleEmitter : MonoBehaviour
         m_pingpongBuffer[0] = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)), ComputeBufferType.Append);
         m_pingpongBuffer[1] = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)), ComputeBufferType.Append);
         indexBuffer = new ComputeBuffer(bufferSize, sizeof(int), ComputeBufferType.Raw);
+        mipmap8 = new RenderTargetHandle();
+        mipmap8.Init("mipmap8");
     }
 
     private void ReleaseBuffer()

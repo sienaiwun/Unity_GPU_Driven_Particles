@@ -1,10 +1,10 @@
 ﻿#pragma kernel CSMain
 
 Texture2D<float> DepthTexture;
-RWTexture2D<float> mipmap1;
+RWTexture2D<float> mipmap8;
 
 [numthreads(8,8,1)]
 void CSMain(uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex, uint3 DTid : SV_DispatchThreadID)
 {
-    mipmap1[DTid.xy] = DepthTexture[DTid.xy];
+    mipmap8[DTid.xy] = DepthTexture[DTid.xy];
 }
