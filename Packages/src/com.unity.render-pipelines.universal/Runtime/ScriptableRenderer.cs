@@ -194,6 +194,7 @@ namespace UnityEngine.Rendering.Universal
         /// <param name="renderingData">Current render state information.</param>
         public void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
+            CustomDrawing.s_render = this;
             Camera camera = renderingData.cameraData.camera;
             CommandBuffer cmd = CommandBufferPool.Get(k_SetCameraRenderStateTag);
 

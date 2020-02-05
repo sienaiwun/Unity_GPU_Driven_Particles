@@ -30,7 +30,7 @@ public class PlanerShadow : MonoBehaviour
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingSkybox,
             };
-            m_drawing.drawer += OnRenderObjectSRP;
+            m_drawing.drawer = OnRenderObjectSRP;
         }
         m_planerShadowDirParam = Shader.PropertyToID("_planerLightDir");
         MeshFilter[] meshFileters = GetComponentsInChildren<MeshFilter>();
@@ -72,7 +72,7 @@ public class PlanerShadow : MonoBehaviour
         }
     }
     
-    void OnRenderObjectSRP(ScriptableRenderContext context, RenderingData data)
+    void OnRenderObjectSRP(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
     {
         if (m_material == null)
             return;

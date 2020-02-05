@@ -33,8 +33,8 @@ namespace UnityEngine.Rendering.Universal
         SceneViewDepthCopyPass m_SceneViewDepthCopyPass;
 #endif
 
-        RenderTargetHandle m_ActiveCameraColorAttachment;
-        RenderTargetHandle m_ActiveCameraDepthAttachment;
+        public RenderTargetHandle m_ActiveCameraColorAttachment;
+        public RenderTargetHandle m_ActiveCameraDepthAttachment;
         RenderTargetHandle m_CameraColorAttachment;
         RenderTargetHandle m_CameraDepthAttachment;
         RenderTargetHandle m_DepthTexture;
