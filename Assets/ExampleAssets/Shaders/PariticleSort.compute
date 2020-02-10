@@ -6,8 +6,12 @@
 #include "common.hlsli"
 
 StructuredBuffer<Particle> inputs;
-ByteAddressBuffer drawArgsBuffer;
+RWByteAddressBuffer drawArgsBuffer;
+ByteAddressBuffer vertexCounterBuffer;
 RWStructuredBuffer<uint> indexBuffer;
+float cotangent;
+float aspect;
+bool enableCulling;
 matrix gViewProj;
 #define SIZE 2048
 #define HALFSIZE SIZE/2
@@ -15,6 +19,19 @@ matrix gViewProj;
 groupshared uint SortKeys[SIZE];
 int j;
 int k;
+
+
+bool FrustomOut(float3 WPos, float size)
+{
+    float4 HPos = mul(gViewProj, float4(WPos, 1));
+    float Height = size * cotangent;
+    float Width = Height * aspect;
+    float3 Extent = abs(HPos.xyz) - float3(Width, Height, 0);
+    Extent /= HPos.w;
+    if (abs(Extent.x) > 1 || abs(Extent.y) > 1)
+        return true;
+    return false;
+}
 
 
 void LoadKeyIndexPair(uint index, uint particleNum)
@@ -36,15 +53,24 @@ void PackSortKey(uint GroupStart, uint Offset, uint particleNum)
         SortKeys[Offset] = TOPMOST;
         return;
     }
-    float4 HPos = mul(gViewProj, float4(particle.position, 1));
-    float Depth = HPos.z / HPos.w;
-    SortKeys[Offset] = f32tof16(Depth)  << 16 | VertexIdx;;
+    if(!FrustomOut(particle.position, particle.size))
+    {
+        float4 HPos = mul(gViewProj, float4(particle.position, 1));
+        float Depth = HPos.z / HPos.w;
+        SortKeys[Offset] = f32tof16(Depth) << 16 | VertexIdx;;
+        drawArgsBuffer.InterlockedAdd(4, 1);
+    }
+    else
+    {
+        SortKeys[Offset] = TOPMOST;
+    }
+   
 
 }
 [numthreads(HALFSIZE, 1, 1)]
 void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
 {
-    uint particleNum =  drawArgsBuffer.Load(4);
+    uint particleNum = vertexCounterBuffer.Load(0);
     uint GroupStart = Gid.x *2048;;
     if (GroupStart > particleNum)
     {
@@ -85,7 +111,7 @@ void ParticleSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint
 [numthreads(HALFSIZE, 1, 1)]
 void InnerSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
 {
-    uint particleNum = drawArgsBuffer.Load(4);
+    uint particleNum = vertexCounterBuffer.Load(0);
     const uint GroupStart = Gid.x * 2048;
     LoadKeyIndexPair(GroupStart + GI, particleNum);
     LoadKeyIndexPair(GroupStart + GI + 1024, particleNum);
@@ -115,7 +141,7 @@ void InnerSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI
 [numthreads(HALFSIZE, 1, 1)]
 void OuterSort(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint GI : SV_GroupIndex)
 {
-    uint particleNum = drawArgsBuffer.Load(4);
+    uint particleNum = vertexCounterBuffer.Load(0);
     uint Index2 = InsertOneBit((uint)DTid.x, (uint)j);
     uint Index1 = Index2 ^ (k == 2 * j ? k - 1 : j);
     if (Index2 >= particleNum)

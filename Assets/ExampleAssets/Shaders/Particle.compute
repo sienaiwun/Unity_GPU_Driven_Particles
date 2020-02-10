@@ -76,7 +76,7 @@ void Emit(uint3 svid : SV_DispatchThreadID)
     p.data.x = 0.0f;
     p.data.y = lifeRange.x + (lifeRange.y - lifeRange.x) * rand(seeds.zxy / (id + 1));
     p.data.z = 0.0f;
-    p.size = 1.0f;
+    p.size = 1.0f + 1.0f *rand(seeds.zxy / (id + 1));
     p.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
     outputs[id] = p;
 }
@@ -111,6 +111,6 @@ void CopyIndirectArgs(uint3 id : SV_DispatchThreadID)
 {
     uint particleCount = drawArgsBuffer.Load(4)-1;// extra incrementCount()
     particleCount = min(particleCount, maxCount);
-    drawArgsBuffer.Store(4, particleCount);
+    drawArgsBuffer.Store(4, 0);
     dispatchArgsBuffer.Store(0, (particleCount + PRESORT_GROUP_COUNT -1) / PRESORT_GROUP_COUNT);
 }

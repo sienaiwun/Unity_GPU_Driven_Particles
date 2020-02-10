@@ -33,7 +33,7 @@ public class ParticleEmitter : MonoBehaviour
     public ComputeShader particleSortCS;
     public ComputeShader depthBoundsCS;
     public ComputeShader hizBufferCS;
-    public bool enableCuling;
+    public bool enableCulling;
     public bool enableSorting = false;
     public float minLifetime = 1f;
     public float maxLifetime = 3f;
@@ -48,7 +48,7 @@ public class ParticleEmitter : MonoBehaviour
     private ComputeBuffer[] m_pingpongBuffer;
     private RenderTargetHandle mipmap8, mipmap16, mipmap32;
     CustomDrawing m_drawing,m_depthBoundDrawing,m_beginFrame,m_endFrame;
-    private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer; // counter is used to get the number of the pools
+    private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer,vertexCounterBuffer; // counter is used to get the number of the pools
     private HiZ depthRangeBuffer;
     const int THREAD_COUNT = 256;
     const int particleCount = 2048*8;//for simplicity, particleCount is the pow(2,xx)*2048
@@ -162,6 +162,7 @@ public class ParticleEmitter : MonoBehaviour
     private void CopyIndirectArgs()
     {
         ComputeBuffer.CopyCount(m_pingpongBuffer[m_currentBufferIndex], indirectdrawbuffer, 4);
+        ComputeBuffer.CopyCount(m_pingpongBuffer[m_currentBufferIndex], vertexCounterBuffer, 0);
         copyArgsKernel = computeShader.FindKernel("CopyIndirectArgs");
         computeShader.SetBuffer(copyArgsKernel, "drawArgsBuffer", indirectdrawbuffer);
         computeShader.SetBuffer(copyArgsKernel, "dispatchArgsBuffer", dispatchArgsBuffer);
@@ -175,6 +176,7 @@ public class ParticleEmitter : MonoBehaviour
         particleSortCS.SetBuffer(initSortKernel, "drawArgsBuffer", indirectdrawbuffer);
         particleSortCS.SetBuffer(initSortKernel, "inputs", m_pingpongBuffer[m_currentBufferIndex]);
         particleSortCS.SetBuffer(initSortKernel, "indexBuffer", indexBuffer);
+        particleSortCS.SetBuffer(initSortKernel, "vertexCounterBuffer", vertexCounterBuffer);
         particleSortCS.DispatchIndirect(initSortKernel, dispatchArgsBuffer);
         if(bufferSize>2048)
         {
@@ -183,6 +185,8 @@ public class ParticleEmitter : MonoBehaviour
             particleSortCS.SetBuffer(outerSortKernel, "indexBuffer", indexBuffer);
             particleSortCS.SetBuffer(outerSortKernel, "drawArgsBuffer", indirectdrawbuffer);
             particleSortCS.SetBuffer(innerSortKernel, "drawArgsBuffer", indirectdrawbuffer);
+            particleSortCS.SetBuffer(outerSortKernel, "vertexCounterBuffer", vertexCounterBuffer);
+            particleSortCS.SetBuffer(innerSortKernel, "vertexCounterBuffer", vertexCounterBuffer);
             particleSortCS.SetBuffer(innerSortKernel, "indexBuffer", indexBuffer);
             int alignedMaxNumElements = Mathf.NextPowerOfTwo(bufferSize);
             for (int k = 4096; k <= alignedMaxNumElements; k *= 2)
@@ -202,7 +206,10 @@ public class ParticleEmitter : MonoBehaviour
     private void UpdateParticles(RenderingData data)
     {
         Camera mainCamera = data.cameraData.camera;
-        Matrix4x4 vp = GL.GetGPUProjectionMatrix(mainCamera.projectionMatrix, false) * mainCamera.worldToCameraMatrix;
+        Matrix4x4 p = GL.GetGPUProjectionMatrix(mainCamera.projectionMatrix, false);
+        float HCot = p.m00;
+        float VCot = p.m11;
+        Matrix4x4 vp = p * mainCamera.worldToCameraMatrix;
         float time_delta = Time.deltaTime;
         timer += time_delta;
 
@@ -213,10 +220,12 @@ public class ParticleEmitter : MonoBehaviour
         computeShader.SetVector("seeds", new Vector3(Random.Range(1f, 10000f), Random.Range(1f, 10000f), Random.Range(1f, 10000f)));
         computeShader.SetVector("lifeRange", new Vector2(minLifetime, maxLifetime));
         computeShader.SetMatrix("gViewProj", vp);
-        computeShader.SetBool("enableCulling", enableCuling);
+        computeShader.SetBool("enableCulling", enableCulling);
         computeShader.SetBool("enableSorting", enableSorting);
         particleSortCS.SetMatrix("gViewProj", vp);
-
+        particleSortCS.SetBool("enableCulling", enableCulling);
+        particleSortCS.SetFloat("cotangent", VCot);
+        particleSortCS.SetFloat("aspect", HCot / VCot);
         DispatchUpdate();
         EmitParticles(Mathf.RoundToInt(Time.deltaTime * emissionRate));
         CopyIndirectArgs();
@@ -245,7 +254,7 @@ public class ParticleEmitter : MonoBehaviour
 
     void OnDepthBounds(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
     {
-        if (!enableCuling)
+        if (!enableCulling)
             return;
         CommandBuffer cmd = CommandBufferPool.Get(m_DepthboundProfilerTag);
         using (new ProfilingSample(cmd, m_DepthboundProfilerTag))
@@ -262,7 +271,7 @@ public class ParticleEmitter : MonoBehaviour
 
     void OnBeginFrame(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
     {
-        if (!enableCuling)
+        if (!enableCulling)
             return;
         int screenWidth = data.cameraData.cameraTargetDescriptor.width;
         int screenHeight = data.cameraData.cameraTargetDescriptor.height;
@@ -321,7 +330,7 @@ public class ParticleEmitter : MonoBehaviour
 
     void OnEndFrame(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
     {
-        if (!enableCuling)
+        if (!enableCulling)
             return;
         int screenWidth = data.cameraData.cameraTargetDescriptor.width;
         int screenHeight = data.cameraData.cameraTargetDescriptor.height;
@@ -371,8 +380,10 @@ public class ParticleEmitter : MonoBehaviour
         quad = new ComputeBuffer(6, Marshal.SizeOf(typeof(Vector3)));
         indirectdrawbuffer = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
         dispatchArgsBuffer = new ComputeBuffer(3, sizeof(int), ComputeBufferType.IndirectArguments);
+        vertexCounterBuffer = new ComputeBuffer(1, sizeof(int), ComputeBufferType.Raw);
         indirectdrawbuffer.SetData(new int[] { 6, 0, 0, 0 });
         dispatchArgsBuffer.SetData(new int[] { 0, 1, 1 });
+        vertexCounterBuffer.SetData(new int[] { 0 });
         quad.SetData(new[]
           {
                 new Vector3(0f,0f,0.0f),
@@ -400,6 +411,7 @@ public class ParticleEmitter : MonoBehaviour
         if (indirectdrawbuffer != null) indirectdrawbuffer.Release();
         if (dispatchArgsBuffer != null) dispatchArgsBuffer.Release();
         if (indexBuffer != null) indexBuffer.Release();
+        if (vertexCounterBuffer != null) vertexCounterBuffer.Release();
         if (m_pingpongBuffer!= null)
         {
             if (m_pingpongBuffer[0] != null) m_pingpongBuffer[0].Release();

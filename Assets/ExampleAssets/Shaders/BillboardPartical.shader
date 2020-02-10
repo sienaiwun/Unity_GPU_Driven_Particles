@@ -65,7 +65,7 @@
 #endif
                
                
-                o.pos = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, float4(local_positon.xyz + particle.position, 1.0f)));;
+                o.pos = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, float4(local_positon.xyz*particle.size + particle.position, 1.0f)));;
 
                 o.uv = local_positon ;
 
