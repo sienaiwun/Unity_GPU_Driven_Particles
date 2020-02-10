@@ -1,0 +1,24 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Blit
+#pragma kernel Gather
+
+
+Texture2D<float> Input;
+RWTexture2D<float> Output;
+SamplerState my_point_clamp_sampler;
+float2 gRcpBufferDim;
+[numthreads(8,8,1)]
+void Blit(uint3 id : SV_DispatchThreadID)
+{
+    float2 UV = (id.xy) * gRcpBufferDim;
+    Output[id.xy] = Input.SampleLevel(my_point_clamp_sampler, UV,0);;
+}
+
+[numthreads(8, 8, 1)]
+void Gather(uint3 id : SV_DispatchThreadID)
+{
+    float2 UV = (id.xy) * gRcpBufferDim;
+    float4 temp = Input.Gather(my_point_clamp_sampler, UV);
+    float maxZ = max(max(temp.x, temp.y), max(temp.z, temp.w));
+    Output[id.xy] = maxZ;
+}

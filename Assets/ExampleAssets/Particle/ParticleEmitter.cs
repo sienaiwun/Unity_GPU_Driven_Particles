@@ -32,6 +32,7 @@ public class ParticleEmitter : MonoBehaviour
     public ComputeShader computeShader;
     public ComputeShader particleSortCS;
     public ComputeShader depthBoundsCS;
+    public ComputeShader hizBufferCS;
     public bool enableCuling;
     public bool enableSorting = false;
     public float minLifetime = 1f;
@@ -48,7 +49,7 @@ public class ParticleEmitter : MonoBehaviour
     private RenderTargetHandle mipmap8, mipmap16, mipmap32;
     CustomDrawing m_drawing,m_depthBoundDrawing,m_beginFrame,m_endFrame;
     private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer; // counter is used to get the number of the pools
-
+    private HiZ depthRangeBuffer;
     const int THREAD_COUNT = 256;
     const int particleCount = 2048*8;//for simplicity, particleCount is the pow(2,xx)*2048
     const float emissionRate = particleCount*0.1f;
@@ -110,6 +111,7 @@ public class ParticleEmitter : MonoBehaviour
         DispatchInit();
         SwapBuffer();
         DispatchUpdate();
+        depthRangeBuffer = new HiZ();
     }
 
     private CustomDrawing AddDrawcall(RenderPassEvent rendereveent, CustomDrawing.DrawFunction func)
@@ -178,8 +180,10 @@ public class ParticleEmitter : MonoBehaviour
         {
             outerSortKernel = particleSortCS.FindKernel("OuterSort");
             innerSortKernel = particleSortCS.FindKernel("InnerSort");
+            particleSortCS.SetBuffer(outerSortKernel, "indexBuffer", indexBuffer);
             particleSortCS.SetBuffer(outerSortKernel, "drawArgsBuffer", indirectdrawbuffer);
             particleSortCS.SetBuffer(innerSortKernel, "drawArgsBuffer", indirectdrawbuffer);
+            particleSortCS.SetBuffer(innerSortKernel, "indexBuffer", indexBuffer);
             int alignedMaxNumElements = Mathf.NextPowerOfTwo(bufferSize);
             for (int k = 4096; k <= alignedMaxNumElements; k *= 2)
             {
@@ -246,6 +250,9 @@ public class ParticleEmitter : MonoBehaviour
         CommandBuffer cmd = CommandBufferPool.Get(m_DepthboundProfilerTag);
         using (new ProfilingSample(cmd, m_DepthboundProfilerTag))
         {
+            ForwardRenderer forwardRenderer = render as ForwardRenderer;
+            Material hizMaterial = new Material(Shader.Find("Hidden/Custom/HizBlit"));
+            depthRangeBuffer.GeneragteHizTexture(cmd, forwardRenderer.ActiveCameraDepthRT,hizBufferCS);
             DepthBoundCalculation(cmd, data, render);
         }
         context.ExecuteCommandBuffer(cmd);
@@ -306,6 +313,7 @@ public class ParticleEmitter : MonoBehaviour
             cmd.GetTemporaryRT(mipmap16.id, desc16);
             cmd.GetTemporaryRT(mipmap32.id, desc32);
         }
+        depthRangeBuffer.InitHiz(cmd, screenWidth, screenHeight);
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
         context.Submit();
@@ -323,6 +331,7 @@ public class ParticleEmitter : MonoBehaviour
             cmd.ReleaseTemporaryRT(mipmap8.id);
             cmd.ReleaseTemporaryRT(mipmap16.id);
             cmd.ReleaseTemporaryRT(mipmap32.id);
+            depthRangeBuffer.OnPostRenderHiz(cmd);
         }
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
