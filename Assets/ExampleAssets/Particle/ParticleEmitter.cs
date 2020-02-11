@@ -44,12 +44,13 @@ public class ParticleEmitter : MonoBehaviour
     private int depthboundKernel;
     private int bufferSize;
     private int groupCount;
+    private int m_screenWidth, m_screenHeight;
     private float timer = 0.0f;
     private ComputeBuffer[] m_pingpongBuffer;
     private RenderTargetHandle mipmap8, mipmap16, mipmap32;
     CustomDrawing m_drawing,m_depthBoundDrawing,m_beginFrame,m_endFrame;
     private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer,vertexCounterBuffer; // counter is used to get the number of the pools
-    private HiZ depthRangeBuffer;
+    private HiZ hizBuffer;
     const int THREAD_COUNT = 256;
     const int particleCount = 2048*8;//for simplicity, particleCount is the pow(2,xx)*2048
     const float emissionRate = particleCount*0.1f;
@@ -111,7 +112,7 @@ public class ParticleEmitter : MonoBehaviour
         DispatchInit();
         SwapBuffer();
         DispatchUpdate();
-        depthRangeBuffer = new HiZ();
+        hizBuffer = new HiZ();
     }
 
     private CustomDrawing AddDrawcall(RenderPassEvent rendereveent, CustomDrawing.DrawFunction func)
@@ -179,7 +180,11 @@ public class ParticleEmitter : MonoBehaviour
         particleSortCS.SetBuffer(initSortKernel, "vertexCounterBuffer", vertexCounterBuffer);
         particleSortCS.DispatchIndirect(initSortKernel, dispatchArgsBuffer);
         if(enableCulling)
-            particleSortCS.SetTexture(initSortKernel, "depthTexture", depthRangeBuffer.HizDepthTexture);
+        { 
+            particleSortCS.SetTexture(initSortKernel, "depthTexture", hizBuffer.HizDepthTexture);
+            particleSortCS.SetFloats("RTSize",new float[2] { m_screenWidth, m_screenHeight });
+            particleSortCS.SetInt("max_level", hizBuffer.Lodlevel);
+        }
         if (bufferSize>2048)
         {
             outerSortKernel = particleSortCS.FindKernel("OuterSort");
@@ -228,6 +233,7 @@ public class ParticleEmitter : MonoBehaviour
         particleSortCS.SetBool("enableCulling", enableCulling);
         particleSortCS.SetFloat("cotangent", VCot);
         particleSortCS.SetFloat("aspect", HCot / VCot);
+        particleSortCS.SetInt("depthTexture_size", hizBuffer.Size);
         DispatchUpdate();
         EmitParticles(Mathf.RoundToInt(Time.deltaTime * emissionRate));
         CopyIndirectArgs();
@@ -263,7 +269,7 @@ public class ParticleEmitter : MonoBehaviour
         {
             ForwardRenderer forwardRenderer = render as ForwardRenderer;
             Material hizMaterial = new Material(Shader.Find("Hidden/Custom/HizBlit"));
-            depthRangeBuffer.GeneragteHizTexture(cmd, forwardRenderer.ActiveCameraDepthRT,hizBufferCS);
+            hizBuffer.GeneragteHizTexture(cmd, forwardRenderer.ActiveCameraDepthRT,hizBufferCS);
             DepthBoundCalculation(cmd, data, render);
         }
         context.ExecuteCommandBuffer(cmd);
@@ -277,6 +283,8 @@ public class ParticleEmitter : MonoBehaviour
             return;
         int screenWidth = data.cameraData.cameraTargetDescriptor.width;
         int screenHeight = data.cameraData.cameraTargetDescriptor.height;
+        m_screenWidth = screenWidth;
+        m_screenHeight = screenHeight;
         CommandBuffer cmd = CommandBufferPool.Get(m_BeginFrmaeProfilerTag);
         int bufferWidth8 = (screenWidth + 7) / 8;
         int bufferWidth16 = (screenWidth + 15) / 16;
@@ -324,7 +332,7 @@ public class ParticleEmitter : MonoBehaviour
             cmd.GetTemporaryRT(mipmap16.id, desc16);
             cmd.GetTemporaryRT(mipmap32.id, desc32);
         }
-        depthRangeBuffer.InitHiz(cmd, screenWidth, screenHeight);
+        hizBuffer.InitHiz(cmd, screenWidth, screenHeight);
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
         context.Submit();
@@ -342,7 +350,7 @@ public class ParticleEmitter : MonoBehaviour
             cmd.ReleaseTemporaryRT(mipmap8.id);
             cmd.ReleaseTemporaryRT(mipmap16.id);
             cmd.ReleaseTemporaryRT(mipmap32.id);
-            depthRangeBuffer.OnPostRenderHiz(cmd);
+            hizBuffer.OnPostRenderHiz(cmd);
         }
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);

@@ -17,6 +17,10 @@ public class HiZ : MonoBehaviour
     }
     #endregion
 
+    public int Size    {  get { return m_size; }   }
+    public int Lodlevel { get { return m_miplevel; } }
+
+
     public void InitHiz(CommandBuffer cmd,int _width,int _height)
     {
         int size = (int)Mathf.Max((float)_width, (float)_height);
@@ -41,6 +45,8 @@ public class HiZ : MonoBehaviour
         };
         HizDepthTexture = RenderTexture.GetTemporary(desc);
     }
+   
+    
 
     public RenderTexture GeneragteHizTexture(CommandBuffer cmd, RenderTargetIdentifier source, ComputeShader HizCS)
     {
@@ -62,7 +68,7 @@ public class HiZ : MonoBehaviour
                 bindMS = false,
                 msaaSamples = 1,
             };
-            cmd.GetTemporaryRT(m_temporalTexHandle[i], temp_desc);
+            cmd.GetTemporaryRT(m_temporalTexHandle[i], temp_desc, FilterMode.Point);
             cmd.SetComputeFloatParams(HizCS, "gRcpBufferDim", new float[] { 1.0f / temporalsize, 1.0f / temporalsize });
             if (i == 0)
             {

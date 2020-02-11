@@ -652,7 +652,9 @@ MonoBehaviour:
   particalMat: {fileID: 2100000, guid: 2fa6708bb84607349adda1e65fc5d040, type: 2}
   computeShader: {fileID: 7200000, guid: bedc546d87f5fd240965a0fb88ae6825, type: 3}
   particleSortCS: {fileID: 7200000, guid: b221c73661e701041845684c7a54c5ad, type: 3}
-  enableCuling: 0
+  depthBoundsCS: {fileID: 7200000, guid: aa58be4ec5dec704fb900b80a020c47a, type: 3}
+  hizBufferCS: {fileID: 7200000, guid: ba61a149ebff36a49ad4537a43962bac, type: 3}
+  enableCulling: 1
   enableSorting: 1
   minLifetime: 3
   maxLifetime: 15
@@ -664,7 +666,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1094566686}
   m_LocalRotation: {x: -0.57681483, y: -0, z: -0, w: 0.8168749}
-  m_LocalPosition: {x: 0.941, y: 2.775, z: -2.0331209}
+  m_LocalPosition: {x: -2.71, y: 4.32, z: -6.39}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
