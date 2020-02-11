@@ -7,7 +7,6 @@ using UnityEngine.Rendering.Universal;
 public class HiZ : MonoBehaviour
 {
     #region Variables
-    private RenderTargetHandle HizDepthRendertarget ;
     public RenderTexture HizDepthTexture = null;
     private int m_size, m_miplevel;
     private int[] m_temporalTexHandle;
@@ -23,8 +22,6 @@ public class HiZ : MonoBehaviour
         int size = (int)Mathf.Max((float)_width, (float)_height);
         size = (int)Mathf.NextPowerOfTwo(size);
         m_size = size;
-        HizDepthRendertarget = new RenderTargetHandle();
-        HizDepthRendertarget.Init("HizDepthRendertarget");
         m_miplevel = (int)Mathf.Floor(Mathf.Log(size, 2f));
         if (m_miplevel == 0)
         {
@@ -40,21 +37,13 @@ public class HiZ : MonoBehaviour
             dimension = TextureDimension.Tex2D,
             bindMS = false,
             msaaSamples = 1,
+            volumeDepth = 1,
         };
-        cmd.GetTemporaryRT(HizDepthRendertarget.id, desc);
+        HizDepthTexture = RenderTexture.GetTemporary(desc);
     }
 
-    public int HizTexture
+    public RenderTexture GeneragteHizTexture(CommandBuffer cmd, RenderTargetIdentifier source, ComputeShader HizCS)
     {
-        get { return HizDepthRendertarget.id; }
-    }
-
-    public int GeneragteHizTexture(CommandBuffer cmd, RenderTargetIdentifier source, ComputeShader HizCS)
-    {
-        if (m_miplevel == 0)
-        {
-            return 0;
-        }
         m_temporalTexHandle = new int[m_miplevel];
         for (int i= 0;i<m_miplevel;i++)
         {
@@ -92,14 +81,14 @@ public class HiZ : MonoBehaviour
                 cmd.DispatchCompute(HizCS, gatherKernel, groupSize, groupSize, 1);
                 cmd.ReleaseTemporaryRT(m_temporalTexHandle[i - 1]);
             }
-            cmd.CopyTexture(m_temporalTexHandle[i], 0, 0, HizDepthRendertarget.id, 0, i );
+            cmd.CopyTexture(m_temporalTexHandle[i], 0, 0, HizDepthTexture, 0, i );
         }
         cmd.ReleaseTemporaryRT(m_temporalTexHandle[m_miplevel-1]);
-        return HizDepthRendertarget.id;
+        return HizDepthTexture;
     }
 
     public void OnPostRenderHiz(CommandBuffer cmd)
     {
-        cmd.ReleaseTemporaryRT(HizDepthRendertarget.id);
+        RenderTexture.ReleaseTemporary(HizDepthTexture);
     }
 }

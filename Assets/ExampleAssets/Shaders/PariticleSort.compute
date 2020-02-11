@@ -9,6 +9,9 @@ StructuredBuffer<Particle> inputs;
 RWByteAddressBuffer drawArgsBuffer;
 ByteAddressBuffer vertexCounterBuffer;
 RWStructuredBuffer<uint> indexBuffer;
+Texture2D<float> depthTexture;
+
+SamplerState my_point_clamp_sampler;
 float cotangent;
 float aspect;
 bool enableCulling;
@@ -28,7 +31,13 @@ bool FrustomOut(float3 WPos, float size)
     float Width = Height * aspect;
     float3 Extent = abs(HPos.xyz) - float3(Width, Height, 0);
     Extent /= HPos.w;
-    if (abs(Extent.x) > 1 || abs(Extent.y) > 1)
+    HPos /= HPos.w;
+    if (abs(Extent.x) > 1 || abs(Extent.y) > 1 || HPos.z > 1 || HPos.z < 0)
+        return true;
+    float2 xy = HPos.xy *0.5f + 0.5f;
+    float depth = depthTexture.SampleLevel(my_point_clamp_sampler, xy, 0).r;
+    float clipZ = HPos.z;
+    if (depth < clipZ)
         return true;
     return false;
 }

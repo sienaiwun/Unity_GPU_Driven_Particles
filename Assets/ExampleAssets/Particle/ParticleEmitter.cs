@@ -178,7 +178,9 @@ public class ParticleEmitter : MonoBehaviour
         particleSortCS.SetBuffer(initSortKernel, "indexBuffer", indexBuffer);
         particleSortCS.SetBuffer(initSortKernel, "vertexCounterBuffer", vertexCounterBuffer);
         particleSortCS.DispatchIndirect(initSortKernel, dispatchArgsBuffer);
-        if(bufferSize>2048)
+        if(enableCulling)
+            particleSortCS.SetTexture(initSortKernel, "depthTexture", depthRangeBuffer.HizDepthTexture);
+        if (bufferSize>2048)
         {
             outerSortKernel = particleSortCS.FindKernel("OuterSort");
             innerSortKernel = particleSortCS.FindKernel("InnerSort");
