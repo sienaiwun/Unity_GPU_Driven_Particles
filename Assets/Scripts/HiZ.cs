@@ -7,7 +7,7 @@ using UnityEngine.Rendering.Universal;
 public class HiZ : MonoBehaviour
 {
     #region Variables
-    public RenderTexture HizDepthTexture = null;
+    public RenderTexture m_hizTexture = null;
     private int m_size, m_miplevel;
     private int[] m_temporalTexHandle;
     private enum Pass
@@ -19,6 +19,8 @@ public class HiZ : MonoBehaviour
 
     public int Size    {  get { return m_size; }   }
     public int Lodlevel { get { return m_miplevel; } }
+    public bool Valid { get { return m_hizTexture != null; } }
+    public RenderTexture HizDepthTexture { get { return m_hizTexture; } }
 
 
     public void InitHiz(CommandBuffer cmd,int _width,int _height)
@@ -43,12 +45,12 @@ public class HiZ : MonoBehaviour
             msaaSamples = 1,
             volumeDepth = 1,
         };
-        HizDepthTexture = RenderTexture.GetTemporary(desc);
+        m_hizTexture = RenderTexture.GetTemporary(desc);
     }
    
     
 
-    public RenderTexture GeneragteHizTexture(CommandBuffer cmd, RenderTargetIdentifier source, ComputeShader HizCS)
+    public void GeneragteHizTexture(CommandBuffer cmd, RenderTargetIdentifier source, ComputeShader HizCS)
     {
         m_temporalTexHandle = new int[m_miplevel];
         for (int i= 0;i<m_miplevel;i++)
@@ -87,14 +89,13 @@ public class HiZ : MonoBehaviour
                 cmd.DispatchCompute(HizCS, gatherKernel, groupSize, groupSize, 1);
                 cmd.ReleaseTemporaryRT(m_temporalTexHandle[i - 1]);
             }
-            cmd.CopyTexture(m_temporalTexHandle[i], 0, 0, HizDepthTexture, 0, i );
+            cmd.CopyTexture(m_temporalTexHandle[i], 0, 0, m_hizTexture, 0, i );
         }
         cmd.ReleaseTemporaryRT(m_temporalTexHandle[m_miplevel-1]);
-        return HizDepthTexture;
     }
 
     public void OnPostRenderHiz(CommandBuffer cmd)
     {
-        RenderTexture.ReleaseTemporary(HizDepthTexture);
+        RenderTexture.ReleaseTemporary(m_hizTexture);
     }
 }

@@ -7,7 +7,7 @@ using UnityEngine.Rendering.Universal;
 using UnityEngine.Experimental.Rendering;
 
 [ExecuteAlways]
-public class ParticleEmitter : MonoBehaviour
+public class ParticleSystem : MonoBehaviour
 {
     #region Const
     static readonly string m_ProfilerTag = "Procedual Particals";
@@ -178,7 +178,7 @@ public class ParticleEmitter : MonoBehaviour
         particleSortCS.SetBuffer(initSortKernel, "indexBuffer", indexBuffer);
         particleSortCS.SetBuffer(initSortKernel, "vertexCounterBuffer", vertexCounterBuffer);
         particleSortCS.DispatchIndirect(initSortKernel, dispatchArgsBuffer);
-        if(enableHizCulling)
+        if(enableHizCulling&&hizBuffer.Valid)
         { 
             particleSortCS.SetTexture(initSortKernel, "depthTexture", hizBuffer.HizDepthTexture);
             particleSortCS.SetFloats("RTSize",new float[2] { m_screenWidth, m_screenHeight });
@@ -228,7 +228,7 @@ public class ParticleEmitter : MonoBehaviour
         computeShader.SetMatrix("gViewProj", vp);
         computeShader.SetBool("enableSorting", enableSorting);
         particleSortCS.SetMatrix("gViewProj", vp);
-        particleSortCS.SetBool("enableHizCulling", enableHizCulling);
+        particleSortCS.SetBool("enableHizCulling", enableHizCulling && hizBuffer.Valid);
         particleSortCS.SetFloat("cotangent", VCot);
         particleSortCS.SetFloat("aspect", HCot / VCot);
         particleSortCS.SetInt("depthTexture_size", hizBuffer.Size);
