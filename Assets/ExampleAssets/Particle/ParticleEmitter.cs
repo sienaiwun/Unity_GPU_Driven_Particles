@@ -33,7 +33,7 @@ public class ParticleEmitter : MonoBehaviour
     public ComputeShader particleSortCS;
     public ComputeShader depthBoundsCS;
     public ComputeShader hizBufferCS;
-    public bool enableCulling;
+    public bool enableHizCulling = false;
     public bool enableSorting = false;
     public float minLifetime = 1f;
     public float maxLifetime = 3f;
@@ -47,7 +47,6 @@ public class ParticleEmitter : MonoBehaviour
     private int m_screenWidth, m_screenHeight;
     private float timer = 0.0f;
     private ComputeBuffer[] m_pingpongBuffer;
-    private RenderTargetHandle mipmap8, mipmap16, mipmap32;
     CustomDrawing m_drawing,m_depthBoundDrawing,m_beginFrame,m_endFrame;
     private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer,vertexCounterBuffer; // counter is used to get the number of the pools
     private HiZ hizBuffer;
@@ -179,7 +178,7 @@ public class ParticleEmitter : MonoBehaviour
         particleSortCS.SetBuffer(initSortKernel, "indexBuffer", indexBuffer);
         particleSortCS.SetBuffer(initSortKernel, "vertexCounterBuffer", vertexCounterBuffer);
         particleSortCS.DispatchIndirect(initSortKernel, dispatchArgsBuffer);
-        if(enableCulling)
+        if(enableHizCulling)
         { 
             particleSortCS.SetTexture(initSortKernel, "depthTexture", hizBuffer.HizDepthTexture);
             particleSortCS.SetFloats("RTSize",new float[2] { m_screenWidth, m_screenHeight });
@@ -227,10 +226,9 @@ public class ParticleEmitter : MonoBehaviour
         computeShader.SetVector("seeds", new Vector3(Random.Range(1f, 10000f), Random.Range(1f, 10000f), Random.Range(1f, 10000f)));
         computeShader.SetVector("lifeRange", new Vector2(minLifetime, maxLifetime));
         computeShader.SetMatrix("gViewProj", vp);
-        computeShader.SetBool("enableCulling", enableCulling);
         computeShader.SetBool("enableSorting", enableSorting);
         particleSortCS.SetMatrix("gViewProj", vp);
-        particleSortCS.SetBool("enableCulling", enableCulling);
+        particleSortCS.SetBool("enableHizCulling", enableHizCulling);
         particleSortCS.SetFloat("cotangent", VCot);
         particleSortCS.SetFloat("aspect", HCot / VCot);
         particleSortCS.SetInt("depthTexture_size", hizBuffer.Size);
@@ -245,32 +243,15 @@ public class ParticleEmitter : MonoBehaviour
         
     }
 
-    void DepthBoundCalculation(CommandBuffer cmd,  RenderingData data, ScriptableRenderer render)
-    {
-        ForwardRenderer forwardRenderer = render as ForwardRenderer;
-        depthboundKernel = depthBoundsCS.FindKernel("CSMain");
-        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "DepthTexture", forwardRenderer.ActiveCameraDepthRT);
-        int screenWidth = data.cameraData.cameraTargetDescriptor.width;
-        int screenHeight = data.cameraData.cameraTargetDescriptor.height;      
-        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "mipmap8", mipmap8.Identifier());
-        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "mipmap16", mipmap16.Identifier());
-        cmd.SetComputeTextureParam(depthBoundsCS, depthboundKernel, "mipmap32", mipmap32.Identifier());
-        cmd.SetComputeFloatParams(depthBoundsCS, "gRcpBufferDim", new float[] { 1.0f / screenWidth, 1.0f / screenHeight });
-        cmd.DispatchCompute(depthBoundsCS, depthboundKernel, screenWidth, screenHeight, 1);
- 
-    }
-
     void OnDepthBounds(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
     {
-        if (!enableCulling)
+        if (!enableHizCulling)
             return;
         CommandBuffer cmd = CommandBufferPool.Get(m_DepthboundProfilerTag);
         using (new ProfilingSample(cmd, m_DepthboundProfilerTag))
         {
             ForwardRenderer forwardRenderer = render as ForwardRenderer;
-            Material hizMaterial = new Material(Shader.Find("Hidden/Custom/HizBlit"));
             hizBuffer.GeneragteHizTexture(cmd, forwardRenderer.ActiveCameraDepthRT,hizBufferCS);
-            DepthBoundCalculation(cmd, data, render);
         }
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
@@ -279,60 +260,17 @@ public class ParticleEmitter : MonoBehaviour
 
     void OnBeginFrame(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
     {
-        if (!enableCulling)
+        if (!enableHizCulling)
             return;
         int screenWidth = data.cameraData.cameraTargetDescriptor.width;
         int screenHeight = data.cameraData.cameraTargetDescriptor.height;
         m_screenWidth = screenWidth;
         m_screenHeight = screenHeight;
         CommandBuffer cmd = CommandBufferPool.Get(m_BeginFrmaeProfilerTag);
-        int bufferWidth8 = (screenWidth + 7) / 8;
-        int bufferWidth16 = (screenWidth + 15) / 16;
-        int bufferWidth32 = (screenWidth + 31) / 32;
-        int bufferHeight8 = (screenHeight + 7) / 8;
-        int bufferHeight16 = (screenHeight + 15) / 16;
-        int bufferHeight32 = (screenHeight + 31) / 32;
         using (new ProfilingSample(cmd, m_BeginFrmaeProfilerTag))
         {
-            RenderTextureDescriptor desc8 = new RenderTextureDescriptor
-            {
-                width = bufferWidth8,
-                height = bufferHeight8,
-                graphicsFormat = GraphicsFormat.R32_SFloat,
-                enableRandomWrite = true,
-                dimension = TextureDimension.Tex2D,
-                bindMS = false,
-                msaaSamples = 1,
-                useMipMap = false,
-            };
-            RenderTextureDescriptor desc16 = new RenderTextureDescriptor
-            {
-                width = bufferWidth16,
-                height = bufferHeight16,
-                graphicsFormat = GraphicsFormat.R32_SFloat,
-                enableRandomWrite = true,
-                dimension = TextureDimension.Tex2D,
-                bindMS = false,
-                msaaSamples = 1,
-                useMipMap = false,
-            };
-            RenderTextureDescriptor desc32 = new RenderTextureDescriptor
-            {
-                width = bufferWidth32,
-                height = bufferHeight32,
-                graphicsFormat = GraphicsFormat.R32_SFloat,
-                enableRandomWrite = true,
-                dimension = TextureDimension.Tex2D,
-                bindMS = false,
-                msaaSamples = 1,
-                useMipMap = false,
-            };
-
-            cmd.GetTemporaryRT(mipmap8.id, desc8);
-            cmd.GetTemporaryRT(mipmap16.id, desc16);
-            cmd.GetTemporaryRT(mipmap32.id, desc32);
+            hizBuffer.InitHiz(cmd, screenWidth, screenHeight);
         }
-        hizBuffer.InitHiz(cmd, screenWidth, screenHeight);
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
         context.Submit();
@@ -340,16 +278,13 @@ public class ParticleEmitter : MonoBehaviour
 
     void OnEndFrame(ScriptableRenderContext context, RenderingData data, ScriptableRenderer render)
     {
-        if (!enableCulling)
+        if (!enableHizCulling)
             return;
         int screenWidth = data.cameraData.cameraTargetDescriptor.width;
         int screenHeight = data.cameraData.cameraTargetDescriptor.height;
         CommandBuffer cmd = CommandBufferPool.Get(m_EndFrmaeProfilerTag);
         using (new ProfilingSample(cmd, m_EndFrmaeProfilerTag))
         {
-            cmd.ReleaseTemporaryRT(mipmap8.id);
-            cmd.ReleaseTemporaryRT(mipmap16.id);
-            cmd.ReleaseTemporaryRT(mipmap32.id);
             hizBuffer.OnPostRenderHiz(cmd);
         }
         context.ExecuteCommandBuffer(cmd);
@@ -407,12 +342,7 @@ public class ParticleEmitter : MonoBehaviour
         m_pingpongBuffer[0] = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)), ComputeBufferType.Append);
         m_pingpongBuffer[1] = new ComputeBuffer(bufferSize, Marshal.SizeOf(typeof(Particle)), ComputeBufferType.Append);
         indexBuffer = new ComputeBuffer(bufferSize, sizeof(int), ComputeBufferType.Raw);
-        mipmap8 = new RenderTargetHandle();
-        mipmap16 = new RenderTargetHandle();
-        mipmap32 = new RenderTargetHandle();
-        mipmap8.Init("mipmap8");
-        mipmap16.Init("mipmap16");
-        mipmap32.Init("mipmap32");
+      
     }
 
     private void ReleaseBuffer()

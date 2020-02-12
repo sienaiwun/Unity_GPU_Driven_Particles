@@ -15,7 +15,7 @@ int depthTexture_size;
 int max_level;
 float cotangent;
 float aspect;
-bool enableCulling;
+bool enableHizCulling;
 float2 RTSize;
 matrix gViewProj;
 #define SIZE 2048
@@ -36,6 +36,8 @@ bool FrustomOut(float3 WPos, float particle_size)
     HPos /= HPos.w;
     if (abs(Extent.x) > 1 || abs(Extent.y) > 1 || HPos.z > 1 || HPos.z < 0)// direct x 
         return true;
+    if (!enableHizCulling)
+        return false;
     float2 xy = HPos.xy *0.5f + 0.5f;
     Extent.xy /= HPos.w;
 
