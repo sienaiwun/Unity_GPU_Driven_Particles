@@ -64,8 +64,8 @@
                 Particle particle = particles[inst];
 #endif
                
-               
-                o.pos = mul(UNITY_MATRIX_P, mul(UNITY_MATRIX_V, float4(local_positon.xyz*particle.size + particle.position, 1.0f)));;
+                float4 view_position = mul(UNITY_MATRIX_V, float4(particle.position.xyz, 1.0f)) + float4(local_positon.xyz*particle.size, 0.0f);
+                o.pos = mul(UNITY_MATRIX_P, view_position);
 
                 o.uv = local_positon ;
 

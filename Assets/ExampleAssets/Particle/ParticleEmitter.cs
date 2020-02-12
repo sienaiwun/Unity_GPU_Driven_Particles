@@ -61,11 +61,11 @@ public class ParticleEmitter : MonoBehaviour
     {
         if (m_drawing == null)
         {
-            m_drawing = AddDrawcall(RenderPassEvent.BeforeRenderingSkybox +1, OnParticlesDrawing);
+            m_drawing = AddDrawcall(RenderPassEvent.BeforeRenderingSkybox +2, OnParticlesDrawing);
         }
         if(m_depthBoundDrawing== null)
         {
-            m_depthBoundDrawing = AddDrawcall(RenderPassEvent.BeforeRenderingSkybox, OnDepthBounds);
+            m_depthBoundDrawing = AddDrawcall(RenderPassEvent.BeforeRenderingSkybox+1, OnDepthBounds);
         }
         if(m_beginFrame == null)
         {
@@ -251,7 +251,7 @@ public class ParticleEmitter : MonoBehaviour
         using (new ProfilingSample(cmd, m_DepthboundProfilerTag))
         {
             ForwardRenderer forwardRenderer = render as ForwardRenderer;
-            hizBuffer.GeneragteHizTexture(cmd, forwardRenderer.ActiveCameraDepthRT,hizBufferCS);
+            hizBuffer.GeneragteHizTexture(cmd, forwardRenderer.DepthRT, hizBufferCS);
         }
         context.ExecuteCommandBuffer(cmd);
         CommandBufferPool.Release(cmd);
@@ -299,7 +299,7 @@ public class ParticleEmitter : MonoBehaviour
         using (new ProfilingSample(cmd, m_ProfilerTag))
         {
             ForwardRenderer forwardRenderer = render as ForwardRenderer;
-            cmd.SetRenderTarget(forwardRenderer.ActiveCameraColorRT, forwardRenderer.ActiveCameraDepthRT);
+            cmd.SetRenderTarget(forwardRenderer.ActiveCameraColorRT, forwardRenderer.DepthRT);
             cmd.SetGlobalBuffer("particles", m_pingpongBuffer[1 - m_currentBufferIndex]);
             cmd.SetGlobalBuffer("quad", quad);
             if(enableSorting)
