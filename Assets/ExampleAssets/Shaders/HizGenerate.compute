@@ -17,7 +17,7 @@ void Blit(uint3 id : SV_DispatchThreadID)
 [numthreads(8, 8, 1)]
 void Gather(uint3 id : SV_DispatchThreadID)
 {
-    float2 UV = (id.xy+0.5f) * gRcpBufferDim;
+    float2 UV = (id.xy+1.0f) * gRcpBufferDim;
     float4 temp = Input.Gather(my_point_clamp_sampler, UV);
     float maxZ = min(min(temp.x, temp.y), min(temp.z, temp.w));
     Output[id.xy] = maxZ;

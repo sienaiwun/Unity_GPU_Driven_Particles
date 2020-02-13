@@ -28,20 +28,21 @@ int k;
 
 bool FrustomOut(float3 WPos, float particle_size)
 {
-    float4 HPos = mul(gViewProj, float4(WPos, 1));
+    const float4 HPos = mul(gViewProj, float4(WPos, 1));
     float Height = particle_size * cotangent;
     float Width = Height * aspect;
     float3 Extent = abs(HPos.xyz) - float3(Width, Height, 0);
     Extent /= HPos.w;
-    HPos /= HPos.w;
-    if (abs(Extent.x) > 1 || abs(Extent.y) > 1 || HPos.z > 1 || HPos.z < 0)// direct x 
+    if (abs(Extent.x) > 1 || abs(Extent.y) > 1 || HPos.z > 1 || HPos.z < 0)// direct x clip space
         return true;
     if (!enableHizCulling)
         return false;
-    float2 xy = HPos.xy *0.5f + 0.5f;
-    Extent.xy /= HPos.w;
 
-    int2 size = Extent.xy * RTSize.xy;
+    float2 halfBoundingBox = float2(Width, Height)*0.5f / HPos.w*0.5f ;
+    float2 xy = HPos.xy*0.5f/ HPos.w  + 0.5f;
+   
+
+    int2 size = halfBoundingBox.xy * RTSize.xy;
     float mip = ceil(log2(max(size.x, size.y)));
     mip = clamp(mip, 0, max_level);
     float  level_lower = max(mip - 1, 0);
@@ -56,12 +57,12 @@ bool FrustomOut(float3 WPos, float particle_size)
     if (dims.x <= 2 && dims.y <= 2)
         mip = level_lower;
   //  float depth = depthTexture.SampleLevel(my_point_clamp_sampler, xy, mip).r;
-    float4 depth = { depthTexture.SampleLevel(my_point_clamp_sampler, xy + Extent.xy * float2(1.0f,1.0f), mip),
-                         depthTexture.SampleLevel(my_point_clamp_sampler, xy + Extent.xy * float2(1.0f,-1.0f), mip),
-                         depthTexture.SampleLevel(my_point_clamp_sampler, xy + Extent.xy * float2(-1.0f,1.0f), mip),
-                         depthTexture.SampleLevel(my_point_clamp_sampler, xy + Extent.xy * float2(-1.0f,-1.0f), mip) };
+    float4 depth = { depthTexture.SampleLevel(my_point_clamp_sampler, xy + halfBoundingBox.xy * float2(1.0f,1.0f), mip),
+                         depthTexture.SampleLevel(my_point_clamp_sampler, xy + halfBoundingBox.xy * float2(1.0f,-1.0f), mip),
+                         depthTexture.SampleLevel(my_point_clamp_sampler, xy + halfBoundingBox.xy * float2(-1.0f,1.0f), mip),
+                         depthTexture.SampleLevel(my_point_clamp_sampler, xy + halfBoundingBox.xy * float2(-1.0f,-1.0f), mip) };
     float maxDepth = min(min(min(depth.x, depth.y), depth.z), depth.w);
-    float clipZ = HPos.z;
+    float clipZ = HPos.z / HPos.w;
     
     //if((1.0 - clipZ) > (depth - 0.000015))
     if (maxDepth - clipZ > 0.000015)  // farther = smaller Reserved Z

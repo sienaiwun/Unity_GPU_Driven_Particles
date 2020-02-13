@@ -19,6 +19,7 @@ float3 transportForward;
 float2 time; //x = delta time, y = elapsed time
 float3 seeds;
 float2 lifeRange; //x = min, y = max
+float2 sizeRange; //x = min, y = max
 matrix gViewProj;
 
 float rand(float3 co)
@@ -64,7 +65,7 @@ void Emit(uint3 svid : SV_DispatchThreadID)
     p.data.x = 0.0f;
     p.data.y = lifeRange.x + (lifeRange.y - lifeRange.x) * rand(seeds.zxy / (id + 1));
     p.data.z = 0.0f;
-    p.size = 1.0f + 1.0f *rand(seeds.zxy / (id + 1));
+    p.size = sizeRange.x + (sizeRange.y- sizeRange.x) *rand(seeds.zxy / (id + 1));
     p.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
     outputs[id] = p;
 }

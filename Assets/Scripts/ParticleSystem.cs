@@ -37,6 +37,8 @@ public class ParticleSystem : MonoBehaviour
     public bool enableSorting = false;
     public float minLifetime = 1f;
     public float maxLifetime = 3f;
+    public float minSize = 1f;
+    public float maxSize = 3f;
 
     private int m_currentBufferIndex = 0;
     private int initKernel, emitKernel, updateKernel,copyArgsKernel;
@@ -178,11 +180,14 @@ public class ParticleSystem : MonoBehaviour
         particleSortCS.SetBuffer(initSortKernel, "indexBuffer", indexBuffer);
         particleSortCS.SetBuffer(initSortKernel, "vertexCounterBuffer", vertexCounterBuffer);
         particleSortCS.DispatchIndirect(initSortKernel, dispatchArgsBuffer);
-        if(enableHizCulling&&hizBuffer.Valid)
+        bool hizEnable = enableHizCulling && hizBuffer.Valid;
+        particleSortCS.SetBool("enableHizCulling", hizEnable);
+        if (hizEnable)
         { 
             particleSortCS.SetTexture(initSortKernel, "depthTexture", hizBuffer.HizDepthTexture);
             particleSortCS.SetFloats("RTSize",new float[2] { m_screenWidth, m_screenHeight });
             particleSortCS.SetInt("max_level", hizBuffer.Lodlevel);
+            
         }
         if (bufferSize>2048)
         {
@@ -225,10 +230,11 @@ public class ParticleSystem : MonoBehaviour
         computeShader.SetFloat("maxCount", particleCount);
         computeShader.SetVector("seeds", new Vector3(Random.Range(1f, 10000f), Random.Range(1f, 10000f), Random.Range(1f, 10000f)));
         computeShader.SetVector("lifeRange", new Vector2(minLifetime, maxLifetime));
+        computeShader.SetVector("sizeRange", new Vector2(minSize, maxSize));
         computeShader.SetMatrix("gViewProj", vp);
         computeShader.SetBool("enableSorting", enableSorting);
         particleSortCS.SetMatrix("gViewProj", vp);
-        particleSortCS.SetBool("enableHizCulling", enableHizCulling && hizBuffer.Valid);
+       
         particleSortCS.SetFloat("cotangent", VCot);
         particleSortCS.SetFloat("aspect", HCot / VCot);
         particleSortCS.SetInt("depthTexture_size", hizBuffer.Size);

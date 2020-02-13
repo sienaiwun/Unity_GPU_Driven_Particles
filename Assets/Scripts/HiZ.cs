@@ -97,5 +97,6 @@ public class HiZ : MonoBehaviour
     public void OnPostRenderHiz(CommandBuffer cmd)
     {
         RenderTexture.ReleaseTemporary(m_hizTexture);
+        m_hizTexture = null;
     }
 }
