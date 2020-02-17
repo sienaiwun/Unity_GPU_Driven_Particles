@@ -38,8 +38,11 @@ public class ParticleSystem : MonoBehaviour
     public ComputeShader computeShader;
     public ComputeShader particleSortCS;
     public ComputeShader hizBufferCS;
-    [ConditionalField("enableSorting")] public bool enableHizCulling = false;
+    public ParticleNum particle_enum = ParticleNum._4096;
+    public float emission_rate = 0.1f;
     public bool enableSorting = false;
+    [ConditionalField("enableSorting")] public bool enableHizCulling = false;
+    
     public float minLifetime = 1f;
     public float maxLifetime = 3f;
     public float minSize = 1f;
@@ -59,7 +62,6 @@ public class ParticleSystem : MonoBehaviour
     private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer, indexBuffer, vertexCounterBuffer; // counter is used to get the number of the pools
     private HiZ hizBuffer;
     const int THREAD_COUNT = 256;
-    public ParticleNum particle_enum = ParticleNum._4096;
     private int particleCount{
         get {
             switch (particle_enum)
@@ -76,7 +78,7 @@ public class ParticleSystem : MonoBehaviour
              }
         } //for simplicity, particleCount is the pow(2,xx)*2048
     private float emissionRate {
-        get { return particleCount * 0.1f; }
+        get { return particleCount * emission_rate; }
     }
 
     #endregion
