@@ -24,8 +24,16 @@ public class ParticleSystem : MonoBehaviour
         public float size;
         public float alive;
     }
-    
-   
+
+    public enum ParticleNum
+    {
+        _512,
+        _1024,
+        _2048,
+        _4096,
+        _16384
+    }
+
     public Material particalMat;
     public ComputeShader computeShader;
     public ComputeShader particleSortCS;
@@ -39,20 +47,37 @@ public class ParticleSystem : MonoBehaviour
     public float velocity = 2.0f;
 
     private int m_currentBufferIndex = 0;
-    private int initKernel, emitKernel, updateKernel,copyArgsKernel;
-    private int initSortKernel, outerSortKernel,innerSortKernel;
+    private int initKernel, emitKernel, updateKernel, copyArgsKernel;
+    private int initSortKernel, outerSortKernel, innerSortKernel;
     private int depthboundKernel;
     private int bufferSize;
     private int groupCount;
     private int m_screenWidth, m_screenHeight;
     private float timer = 0.0f;
     private ComputeBuffer[] m_pingpongBuffer;
-    CustomDrawing m_drawing,m_depthBoundDrawing,m_beginFrame,m_endFrame;
-    private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer,indexBuffer,vertexCounterBuffer; // counter is used to get the number of the pools
+    CustomDrawing m_drawing, m_depthBoundDrawing, m_beginFrame, m_endFrame;
+    private ComputeBuffer quad, indirectdrawbuffer, dispatchArgsBuffer, indexBuffer, vertexCounterBuffer; // counter is used to get the number of the pools
     private HiZ hizBuffer;
     const int THREAD_COUNT = 256;
-    const int particleCount = 2048*8;//for simplicity, particleCount is the pow(2,xx)*2048
-    const float emissionRate = particleCount*0.1f;
+    public ParticleNum particle_enum = ParticleNum._4096;
+    private int particleCount{
+        get {
+            switch (particle_enum)
+            {
+                case ParticleNum._512:  return 512;
+                case ParticleNum._1024: return 1024;
+                case ParticleNum._2048: return 2048;
+                case ParticleNum._4096: return 4096;
+                case ParticleNum._16384: return 16384;
+                default:
+                    return 2048;
+
+            }
+             }
+        } //for simplicity, particleCount is the pow(2,xx)*2048
+    private float emissionRate {
+        get { return particleCount * 0.1f; }
+    }
 
     #endregion
 
