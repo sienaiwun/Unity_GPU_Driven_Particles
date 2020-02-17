@@ -13,7 +13,7 @@
 ![hiz_visualizaton](https://github.com/sienaiwun/Unity_GPU_Driven_Particles/blob/master/imgs/hiz_visualize.gif?raw=true)
 上图展示了hiz buffer的mipmap结构。可以看出hiz_buffer是一种保守的可见性判断方法。
 ![hiz_draw_call](https://github.com/sienaiwun/Unity_GPU_Driven_Particles/blob/master/imgs/Hiz_culling.gif?raw=true)
-上图通过修改渲染顺序和材质，透明化绘制出来被遮挡体遮住的draw，可以看出这种保守的遮挡方案还是使得部分应该被剔除的粒子进入到绘制管线中。
+上图通过修改渲染顺序和材质，透明化绘制出来被遮挡体遮住的draw。虽然可以看到需要绘制的图元有显著的减少，但是可以看出这种保守的遮挡方案还是使得部分应该被剔除的粒子进入到绘制管线中。
   
   
 #### GPU Sorting
@@ -24,12 +24,14 @@
 上图展示了进行深度排序的粒子，绘制出稳定的画面，粒子的个数是16384个。
   
 #### Unity SRP 实现
-Unity对底部的实现细节进行了封装，按照暴露的接口可以由[DrawProceduralIndirect](https://docs.unity3d.com/ScriptReference/Graphics.DrawProceduralIndirect.html)指定argument buffer设定。由于绘制draw的参数不一，需要为每个draw绑定各个的shader参数,比如constant buffer和题图。在较新的渲染API中，可以通过绑定每个indirect draw call的GPU位置偏移和shader resource 去绑定每个drawcall的constant buffer view和shader resource view，这样在shader的编写完全更绘制的方式无关，同样可以按照普通的绘制方式进行绘制。Unity没法直接去设置底层参数，可以折衷由structbuffer来表达众多的constant buffer view,由3D texture 和纹理索引来表示众多的纹理，然后用每个draw各自id来表达绘制参数。
-![multi_argus]
+Unity对底部的实现细节进行了封装，按照暴露的接口可以由[DrawProceduralIndirect](https://docs.unity3d.com/ScriptReference/Graphics.DrawProceduralIndirect.html)指定argument buffer设定。由于绘制draw的参数不一，需要为每个draw绑定各个的shader参数,比如constant buffer和题图。在较新的渲染API中，可以通过绑定每个indirect draw call的GPU位置偏移和shader resource 去绑定每个drawcall的constant buffer view和shader resource view，这样在shader的编写完全更绘制的方式无关，同样可以按照普通的绘制方式进行绘制。Unity没法直接去设置底层参数，也没有sparse texture 支持，可以折衷由structbuffer来表达众多的constant buffer view,由3D texture 和纹理索引来表示众多的纹理，然后用每个draw各自id来表达绘制参数。
+![multi_argus](https://github.com/sienaiwun/Unity_GPU_Driven_Particles/blob/master/imgs/per_draw_params.gif?raw=true)
+上图显示在同一个绘制的particle的uniform参数(位置，速度)和纹理都可以不一致。
 #### 兼容性
 Indirect draw call 和compute shader在Openes3.1是支持的，该程序可以在笔者小米mix2机器上由vulkan Api进行绘制。 
 
 #### 总结
+通过简单的GPU_Driven_Pipeline的粒子系统我们可以进一步扩大，如果每个draw是模型或者模型的某一部分（cluster）,就是[GPU-Driven Rendering Pipeline]([](http://advances.realtimerendering.com/s2015/aaltonenhaar_siggraph2015_combined_final_footer_220dpi.pdf))的基本内容。
 GPU_Driven_Pipeline是一种为了减少CPU提交次数的充分利用GPU性能的一种绘制技术。为了让绘制更加高效，更加合理，又加入了各种变种的剔除算法，绘制优化等优化算法等。GPU_Driven_Pipeline通常有indirect draw call,这样可以消除GPU和CPU之间的参数传递带宽等待时间，但是它的弊端是这种drawcall会比较慢，而且需要高级API支持。好的GPU_DRIVEN_PIPELINE需要对GPU的加速算法非常熟悉，要不然很可能做的是负优化。
 
 #### todo 
