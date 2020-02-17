@@ -1,10 +1,8 @@
 ﻿using System.Runtime.InteropServices;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using UnityEngine.Experimental.Rendering;
+using MyBox;
 
 [ExecuteAlways]
 public class ParticleSystem : MonoBehaviour
@@ -31,14 +29,14 @@ public class ParticleSystem : MonoBehaviour
     public Material particalMat;
     public ComputeShader computeShader;
     public ComputeShader particleSortCS;
-    public ComputeShader depthBoundsCS;
     public ComputeShader hizBufferCS;
-    public bool enableHizCulling = false;
+    [ConditionalField("enableSorting")] public bool enableHizCulling = false;
     public bool enableSorting = false;
     public float minLifetime = 1f;
     public float maxLifetime = 3f;
     public float minSize = 1f;
     public float maxSize = 3f;
+    public float velocity = 2.0f;
 
     private int m_currentBufferIndex = 0;
     private int initKernel, emitKernel, updateKernel,copyArgsKernel;
@@ -233,6 +231,7 @@ public class ParticleSystem : MonoBehaviour
         computeShader.SetVector("sizeRange", new Vector2(minSize, maxSize));
         computeShader.SetMatrix("gViewProj", vp);
         computeShader.SetBool("enableSorting", enableSorting);
+        computeShader.SetFloat("velocity", velocity);
         particleSortCS.SetMatrix("gViewProj", vp);
        
         particleSortCS.SetFloat("cotangent", VCot);

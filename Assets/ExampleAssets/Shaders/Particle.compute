@@ -17,6 +17,7 @@ float maxCount;
 float3 transportPosition;
 float3 transportForward;
 float2 time; //x = delta time, y = elapsed time
+float velocity;
 float3 seeds;
 float2 lifeRange; //x = min, y = max
 float2 sizeRange; //x = min, y = max
@@ -61,7 +62,7 @@ void Emit(uint3 svid : SV_DispatchThreadID)
     p.alive = 1.0f;
     p.position = transportPosition;
     float radius = 1.0f;
-    p.forward = transportForward + randomPointOnSphere(rand(seeds.xyz / (id + 1)), rand(seeds.yzx / (id + 1)), radius * rand(seeds.zyx / (id + 1)));
+    p.forward = transportForward* velocity + randomPointOnSphere(rand(seeds.xyz / (id + 1)), rand(seeds.yzx / (id + 1)), radius * rand(seeds.zyx / (id + 1)));
     p.data.x = 0.0f;
     p.data.y = lifeRange.x + (lifeRange.y - lifeRange.x) * rand(seeds.zxy / (id + 1));
     p.data.z = 0.0f;
