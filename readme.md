@@ -36,8 +36,8 @@ Indirect draw call 和compute shader在Openes3.1是支持的，该程序可以�
 GPU_Driven_Pipeline是一种为了减少CPU提交次数的充分利用GPU性能的一种绘制技术。为了让绘制更加高效，更加合理，又加入了各种变种的剔除算法，绘制优化等优化算法等。GPU_Driven_Pipeline通常有indirect draw call,这样可以消除GPU和CPU之间的参数传递带宽等待时间，但是它的弊端是这种drawcall会比较慢，而且需要高级API支持。好的GPU_DRIVEN_PIPELINE需要对GPU的加速算法非常熟悉，要不然很可能做的是负优化。
 
 #### todo 
-bug:
-运行时有什么问题，请disable掉component,然后重新enable看看。另外在frame analysis的时候回不适crush.
+Particles Update里面使用GPU reduction 生成index buffer 
+bug:运行时有什么问题，请disable掉component,然后重新enable看看。另外在frame analysis的时候回不时crush.
 
 #### 参考资料
 [Experiments in GPU-based occlusion culling – Interplay of Light](https://interplayoflight.wordpress.com/2017/11/15/experiments-in-gpu-based-occlusion-culling/)

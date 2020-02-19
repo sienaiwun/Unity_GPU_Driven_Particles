@@ -26,8 +26,10 @@ int j;
 int k;
 
 
-bool FrustomOut(Particle particle)
+bool CullOut(Particle particle)
 {
+
+    //FrustomOut
     const float4 HPos = mul(gViewProj, float4(particle.position, 1));
     float Height = particle.size * cotangent;
     float Width = Height * aspect;
@@ -37,7 +39,7 @@ bool FrustomOut(Particle particle)
         return true;
     if (!enableHizCulling)
         return false;
-
+    //Hiz culling
     float2 halfParticleSize = float2(Width, Height) / HPos.w*0.5f ;
     float2 xy = HPos.xy*0.5f/ HPos.w  + 0.5f;
     int2 size = halfParticleSize.xy * RTSize.xy;
@@ -75,7 +77,7 @@ void PackSortKey(uint GroupStart, uint Offset, uint particleNum)
         SortKeys[Offset] = TOPMOST;
         return;
     }
-    if(!FrustomOut(particle))
+    if(!CullOut(particle))
     {
         float4 HPos = mul(gViewProj, float4(particle.position, 1));
         float Depth = HPos.z / HPos.w;
